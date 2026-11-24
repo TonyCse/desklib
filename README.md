@@ -28,7 +28,7 @@ Mot de passe commun : `demo1234`
 ## Fonctionnalités
 
 - Plan d'étage généré en SVG, avec popover de réservation (clic ou Entrée).
-- Vue liste avec filtres (libres, équipement, zone), par défaut sur mobile.
+- Vue 3D : scène WebGL (Three.js) avec du mobilier 3D libre de droits (Kenney, CC0, voir `apps/web/public/3d/LICENSES.md`). Les postes restent cliquables et reflètent leur état. La bibliothèque est chargée seulement à l'ouverture de cette vue.- Vue liste avec filtres (libres, équipement, zone), par défaut sur mobile.
 - Réservation matin, après-midi ou journée, dans la limite de 14 jours et les jours ouvrés.
 - Quota de 3 jours sur site par semaine ISO.
 - Mes réservations : à venir et passées, annulation avec confirmation.

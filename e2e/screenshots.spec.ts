@@ -26,6 +26,12 @@ test('captures des écrans principaux', async ({ page }) => {
   await expect(page.locator('svg[role="group"]')).toBeVisible();
   await page.screenshot({ path: path.join(OUT, 'plan-etage.png') });
 
+  await page.getByRole('button', { name: 'Vue 3D', exact: true }).click();
+  // Attend la fin du chargement des modèles (la scène passe à « ready »).
+  await expect(page.locator('[data-status="ready"]')).toBeVisible({ timeout: 90_000 });
+  await page.screenshot({ path: path.join(OUT, 'plan-vue-3-4.png') });
+  await page.getByRole('button', { name: 'Plan', exact: true }).click();
+
   await page.getByRole('button', { name: 'Liste', exact: true }).click();
   await page
     .getByRole('button', { name: /^Poste .+, libre toute la journée$/ })

@@ -48,6 +48,16 @@
       <button
         type="button"
         class="rounded-md px-3 py-1.5 text-sm font-medium"
+        [class.bg-accent]="viewMode() === '3d'"
+        [class.text-white]="viewMode() === '3d'"
+        [attr.aria-pressed]="viewMode() === '3d'"
+        (click)="setView('3d')"
+      >
+        Vue 3D
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-3 py-1.5 text-sm font-medium"
         [class.bg-accent]="viewMode() === 'list'"
         [class.text-white]="viewMode() === 'list'"
         [attr.aria-pressed]="viewMode() === 'list'"
@@ -76,6 +86,10 @@
     <div class="rounded-xl border border-line bg-surface p-4 shadow-card">
       <div class="h-72 w-full animate-pulse rounded-lg bg-line" role="status" aria-label="Chargement du plan"></div>
     </div>
+  } @else if (viewMode() === '3d') {
+    @if (detail(); as plan) {
+      <app-floor-scene-3d [detail]="plan" [desks]="sceneDesks()" (deskPicked)="onScenePick($event)" />
+    }
   } @else if (viewMode() === 'plan') {
     @if (detail(); as plan) {
       <div class="overflow-x-auto rounded-xl border border-line bg-surface p-3 shadow-card">

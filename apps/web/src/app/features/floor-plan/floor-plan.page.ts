@@ -32,8 +32,11 @@ import { DESK_STATE_META } from './desk-status';
 import { DeskPopoverComponent } from './desk-popover.component';
 import type { DeskView } from './desk-view';
 import { buildDeskView } from './desk-view';
+import type { SceneDesk } from './scene3d/office-scene';
+import { FloorScene3dComponent } from './scene3d/floor-scene-3d.component';
 
-type ViewMode = 'plan' | 'list';
+type ViewMode = 'plan' | '3d' | 'list';
+
 const MOBILE_QUERY = '(max-width: 767px)';
 
 /** Couleurs de remplissage par état. L'état est aussi porté par le symbole et le motif. */
@@ -62,7 +65,7 @@ const DESK_TONE: Record<DeskState, BadgeTone> = {
 
 @Component({
   selector: 'app-floor-plan-page',
-  imports: [EmptyStateComponent, ButtonComponent, BadgeComponent],
+  imports: [EmptyStateComponent, ButtonComponent, BadgeComponent, FloorScene3dComponent],
   templateUrl: './floor-plan.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -135,6 +138,27 @@ export class FloorPlanPage {
       return [buildDeskView(geometry, avail, zone?.name ?? 'Hors zone')];
     });
   });
+
+  /** Postes tels qu'attendus par la scène 3D (géométrie et état). */
+  protected readonly sceneDesks = computed<SceneDesk[]>(() =>
+    this.desks().map((d) => ({
+      id: d.id,
+      label: d.label,
+      x: d.x,
+      y: d.y,
+      width: d.width,
+      height: d.height,
+      state: d.state,
+      isActive: d.availability.isActive,
+    })),
+  );
+
+  protected onScenePick(event: { deskId: string; anchor: HTMLElement }): void {
+    const desk = this.deskById().get(event.deskId);
+    if (desk) this.openPopover(desk, event.anchor);
+  }
+
+  protected readonly deskById = computed(() => new Map(this.desks().map((d) => [d.id, d])));
 
   protected readonly zoneOptions = computed(() =>
     [...new Set(this.desks().map((d) => d.zone))].sort(),
@@ -329,6 +353,8 @@ export class FloorPlanPage {
       'viewerHalves',
       this.availability()?.viewer ?? { AM: false, PM: false },
     );
+    // Rendu immédiat : les boutons reflètent les créneaux déjà pris avant tout clic.
+    this.popoverRef.changeDetectorRef.detectChanges();
     this.popoverRef.instance.bookRequested.subscribe((half) => this.book(desk, half));
     this.popoverRef.instance.closeRequested.subscribe(() => this.closePopover());
   }

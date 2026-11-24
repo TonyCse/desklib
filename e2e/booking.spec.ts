@@ -17,6 +17,8 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
 
   // Parcourt les dates à venir jusqu'à réussir une réservation de journée.
   const dateSelect = page.locator('select').first();
+  // Attend les réglages (dates proposées) avant de lire les options.
+  await expect(dateSelect.locator('option').first()).toBeAttached();
   const optionCount = await dateSelect.locator('option').count();
   let bookedLabel: string | null = null;
 
