@@ -172,6 +172,49 @@ export class UpdateVehicleDto {
   isActive?: boolean;
 }
 
+export class CreateRoomDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name!: string;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  zoneName!: string;
+
+  @IsString()
+  @MinLength(1)
+  floorId!: string;
+
+  @IsInt()
+  @Min(2)
+  @Max(40)
+  capacity!: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateRoomDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(40)
+  capacity?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
 export class RangeQueryDto {
   @Matches(ISO_DATE, { message: 'from doit être au format YYYY-MM-DD' })
   from!: string;

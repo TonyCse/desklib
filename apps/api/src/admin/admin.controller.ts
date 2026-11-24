@@ -17,6 +17,8 @@ import {
   AuditQueryDto,
   CreateDeskDto,
   CreateVehicleDto,
+  CreateRoomDto,
+  UpdateRoomDto,
   UpdateVehicleDto,
   RangeQueryDto,
   UpdateDeskDto,
@@ -66,6 +68,25 @@ export class AdminController {
     @Body() dto: UpdateVehicleDto,
   ) {
     return this.admin.updateVehicle(actor, id, dto);
+  }
+
+  @Get('rooms')
+  listRooms() {
+    return this.admin.listRooms();
+  }
+
+  @Post('rooms')
+  createRoom(@CurrentUser() actor: AuthUser, @Body() dto: CreateRoomDto) {
+    return this.admin.createRoom(actor, dto);
+  }
+
+  @Patch('rooms/:id')
+  updateRoom(
+    @CurrentUser() actor: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateRoomDto,
+  ) {
+    return this.admin.updateRoom(actor, id, dto);
   }
 
   @Get('settings')

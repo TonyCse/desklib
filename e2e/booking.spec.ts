@@ -24,10 +24,17 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
   for (let i = 1; i < Math.min(optionCount, 9) && bookedLabel === null; i++) {
     // Attend le rechargement des disponibilités avant de cliquer (évite un état périmé).
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/availability') && r.ok()),
+      // Disponibilité de l'étage (et non celle des véhicules ou des salles, qui ont aussi « availability »).
+      page.waitForResponse((r) => /\/api\/floors\/[^/]+\/availability/.test(r.url()) && r.ok()),
       datePills.nth(i).click(),
     ]);
 
+    // Attend que la liste des postes soit affichée (les données arrivent avec les véhicules et les salles).
+    await page
+      .getByRole('button', { name: /^Poste / })
+      .first()
+      .waitFor({ timeout: 10_000 })
+      .catch(() => undefined);
     const freeDesk = page
       .getByRole('button', { name: /^Poste .+, libre toute la journée$/ })
       .first();

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { FloorDetail } from '../../../core/models';
 import type { DeskState } from '../desk-status';
 
@@ -18,7 +19,7 @@ const FLOOR_GAP = 4;
 const TRANSITION_MS = 700;
 const VIEW_MS = 650;
 
-const STATE_COLOR: Record<DeskState, number> = {
+const DESK_COLOR: Record<DeskState, number> = {
   FREE: 0x2f9e6b,
   PARTIAL: 0x2f54c6,
   MINE: 0x2f54c6,
@@ -27,9 +28,18 @@ const STATE_COLOR: Record<DeskState, number> = {
   UNAVAILABLE: 0xc3cad6,
 };
 
+/** États d'une ressource (véhicule ou salle) : résumé des deux demi-journées. */
+export type ResourceState = 'FREE' | 'PARTIAL' | 'MINE' | 'BOOKED';
+
+const RESOURCE_COLOR: Record<ResourceState, number> = {
+  FREE: 0x2f9e6b,
+  PARTIAL: 0x2f54c6,
+  MINE: 0x1e3f9e,
+  BOOKED: 0x8a94a6,
+};
+
 const PALETTE = {
   ground: 0xdfe9f4,
-  slab: 0xf4f7fb,
   openspace: 0xf7f9fc,
   roomCarpet: 0xe4ecf7,
   kitchenTile: 0xf1f5f9,
@@ -48,6 +58,7 @@ const WALL_HIGH = 2.6;
 const WALL_LOW = 0.45;
 const WALL_T = 0.14;
 const SITE_MARGIN = 14;
+const SLOT_W = 2.2;
 
 export interface SceneDesk {
   id: string;
@@ -60,20 +71,35 @@ export interface SceneDesk {
   isActive: boolean;
 }
 
+export interface SceneVehicle {
+  id: string;
+  name: string;
+  state: ResourceState;
+}
+
+export interface SceneRoom {
+  id: string;
+  name: string;
+  zoneName: string;
+  state: ResourceState;
+}
+
+/** Élément désigné dans la scène. */
+export interface ScenePick {
+  kind: 'desk' | 'vehicle' | 'room';
+  id: string;
+}
+
 export type SceneView = 'iso' | 'top';
 
 type ModelName =
   | 'desk'
-  | 'desk-corner'
   | 'chair-desk'
   | 'chair'
   | 'chair-modern'
   | 'monitor'
-  | 'keyboard'
-  | 'laptop'
   | 'plant'
   | 'plant-small'
-  | 'table'
   | 'table-round'
   | 'table-coffee'
   | 'kitchen-cabinet'
@@ -85,8 +111,6 @@ type ModelName =
   | 'trashcan'
   | 'lamp-floor'
   | 'rug'
-  | 'cabinet-tv'
-  | 'window'
   | 'stool'
   | 'tree-default'
   | 'tree-oak'
@@ -104,16 +128,12 @@ type ModelName =
 /** Chemin de chaque modèle, relatif à `public/`. */
 const MODEL_PATH: Record<ModelName, string> = {
   desk: '3d/office/desk.glb',
-  'desk-corner': '3d/office/desk-corner.glb',
   'chair-desk': '3d/office/chair-desk.glb',
   chair: '3d/office/chair.glb',
   'chair-modern': '3d/office/chair-modern.glb',
   monitor: '3d/office/monitor.glb',
-  keyboard: '3d/office/keyboard.glb',
-  laptop: '3d/office/laptop.glb',
   plant: '3d/office/plant.glb',
   'plant-small': '3d/office/plant-small.glb',
-  table: '3d/office/table.glb',
   'table-round': '3d/office/table-round.glb',
   'table-coffee': '3d/office/table-coffee.glb',
   'kitchen-cabinet': '3d/office/kitchen-cabinet.glb',
@@ -125,8 +145,6 @@ const MODEL_PATH: Record<ModelName, string> = {
   trashcan: '3d/office/trashcan.glb',
   'lamp-floor': '3d/office/lamp-floor.glb',
   rug: '3d/office/rug.glb',
-  'cabinet-tv': '3d/office/cabinet-tv.glb',
-  window: '3d/office/window.glb',
   stool: '3d/office/stool.glb',
   'tree-default': '3d/nature/tree-default.glb',
   'tree-oak': '3d/nature/tree-oak.glb',
@@ -143,6 +161,15 @@ const MODEL_PATH: Record<ModelName, string> = {
 };
 
 const MODEL_NAMES = Object.keys(MODEL_PATH) as ModelName[];
+const CAR_MODELS: ModelName[] = [
+  'car-sedan',
+  'car-suv',
+  'car-sports',
+  'car-hatch',
+  'car-van',
+  'car-taxi',
+];
+const CAR_COLORS = [0xf8fafc, 0x2f54c6, 0x9aa5b5, 0x1e293b];
 
 /** Couleur du mobilier selon sa nature, pour rester dans la palette bleu et blanc de l'interface. */
 function furnitureColor(name: ModelName): number | null {
@@ -153,12 +180,8 @@ function furnitureColor(name: ModelName): number | null {
     case 'stool':
       return 0x2f54c6;
     case 'monitor':
-    case 'keyboard':
-    case 'laptop':
-    case 'cabinet-tv':
       return 0x1e293b;
     case 'desk':
-    case 'desk-corner':
       return 0xb9cdf2;
     case 'plant':
     case 'plant-small':
@@ -186,11 +209,31 @@ function furnitureColor(name: ModelName): number | null {
   }
 }
 
+function isCar(name: ModelName): boolean {
+  return name.startsWith('car-');
+}
+
+/**
+ * Lisse un maillage à facettes : recalcule les normales sur les sommets partagés, pour un
+ * rendu moins anguleux sans ajouter de polygones.
+ */
+function smoothGeometry(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  const copy = geometry.clone();
+  copy.deleteAttribute('normal');
+  const merged = mergeVertices(copy, 1e-3);
+  merged.computeVertexNormals();
+  return merged;
+}
+
 type Tween = { start: number; duration: number; step: (t: number) => void; done?: () => void };
 
 /** Ease in-out cubique. */
 function ease(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function pickKey(pick: ScenePick): string {
+  return `${pick.kind}:${pick.id}`;
 }
 
 export class OfficeScene {
@@ -202,8 +245,10 @@ export class OfficeScene {
   private readonly pointer = new THREE.Vector2();
   private readonly models = new Map<ModelName, THREE.Group>();
   private readonly materials = new Map<number, THREE.MeshStandardMaterial>();
+  /** Repères au sol (postes, véhicules, salles), par clé « genre:identifiant ». */
   private readonly markers = new Map<string, THREE.Mesh>();
   private hitboxes: THREE.Mesh[] = [];
+  private siteHitboxes: THREE.Mesh[] = [];
   private hovered: string | null = null;
   private frame = 0;
   private width = 1;
@@ -212,10 +257,10 @@ export class OfficeScene {
   private siteGroup: THREE.Group | null = null;
   private floorId: string | null = null;
   private builtSignature = '';
+  private siteKey = '';
   private detail: FloorDetail | null = null;
   private tweens: Tween[] = [];
   private lastTime = 0;
-  private readonly sun: THREE.DirectionalLight;
 
   private constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -240,18 +285,19 @@ export class OfficeScene {
 
     this.scene.background = new THREE.Color(0xeaf1fa);
     this.scene.add(new THREE.HemisphereLight(PALETTE.hemiSky, PALETTE.hemiGround, 1.6));
-    this.sun = new THREE.DirectionalLight(PALETTE.shadowLight, 2.4);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
-    const c = this.sun.shadow.camera;
+    const sun = new THREE.DirectionalLight(PALETTE.shadowLight, 2.4);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    const c = sun.shadow.camera;
     c.left = -40;
     c.right = 40;
     c.top = 40;
     c.bottom = -40;
     c.near = 1;
     c.far = 160;
-    this.sun.shadow.bias = -0.0005;
-    this.scene.add(this.sun);
+    sun.shadow.bias = -0.0005;
+    sun.position.set(-12, 30, 14);
+    this.scene.add(sun);
   }
 
   /** Charge les modèles puis crée la scène. Les échecs de chargement sont propagés. */
@@ -262,35 +308,60 @@ export class OfficeScene {
   }
 
   /**
-   * Met la scène à jour selon l'étage et l'état des postes :
+   * Met la scène à jour selon l'étage et les états :
    * - changement d'étage : transition animée (l'étage sort, le nouveau monte) ;
-   * - même étage, postes changés : reconstruction sans animation si la liste de postes diffère ;
+   * - liste des éléments modifiée : reconstruction sans animation ;
    * - sinon : simple mise à jour des états.
    */
-  update(detail: FloorDetail, desks: readonly SceneDesk[]): void {
-    const signature = desks
-      .map((d) => d.id)
-      .sort()
-      .join('|');
+  update(
+    detail: FloorDetail,
+    desks: readonly SceneDesk[],
+    vehicles: readonly SceneVehicle[],
+    rooms: readonly SceneRoom[],
+  ): void {
+    const signature = [
+      desks
+        .map((d) => d.id)
+        .sort()
+        .join(','),
+      vehicles
+        .map((v) => v.id)
+        .sort()
+        .join(','),
+      rooms
+        .map((r) => r.id)
+        .sort()
+        .join(','),
+    ].join('|');
     if (detail.id !== this.floorId) {
-      this.transitionTo(detail, desks, signature);
+      this.transitionTo(detail, desks, vehicles, rooms, signature);
     } else if (signature !== this.builtSignature) {
-      this.buildFloor(detail, desks, signature, 0);
+      this.buildFloor(detail, desks, vehicles, rooms, signature);
       this.frameCamera(detail);
     } else {
-      this.setStates(desks);
+      this.setStates(desks, vehicles, rooms);
     }
     this.requestRender();
   }
 
-  /** Met à jour l'état des postes sans reconstruire la scène. */
-  setStates(desks: readonly SceneDesk[]): void {
+  /** Met à jour les états des repères sans reconstruire la scène. */
+  setStates(
+    desks: readonly SceneDesk[],
+    vehicles: readonly SceneVehicle[],
+    rooms: readonly SceneRoom[],
+  ): void {
     for (const desk of desks) {
-      const marker = this.markers.get(desk.id);
-      if (!marker) continue;
-      const material = marker.material as THREE.MeshBasicMaterial;
-      material.color.setHex(STATE_COLOR[desk.state]);
-      material.opacity = desk.state === 'UNAVAILABLE' ? 0.45 : 0.9;
+      this.paint(
+        pickKey({ kind: 'desk', id: desk.id }),
+        DESK_COLOR[desk.state],
+        desk.state === 'UNAVAILABLE' ? 0.45 : 0.9,
+      );
+    }
+    for (const v of vehicles) {
+      this.paint(pickKey({ kind: 'vehicle', id: v.id }), RESOURCE_COLOR[v.state], 0.9);
+    }
+    for (const r of rooms) {
+      this.paint(pickKey({ kind: 'room', id: r.id }), RESOURCE_COLOR[r.state], 0.32);
     }
     this.requestRender();
   }
@@ -330,25 +401,27 @@ export class OfficeScene {
     this.requestRender();
   }
 
-  /** Désigne le poste sous le pointeur (coordonnées écran). */
-  pick(clientX: number, clientY: number): string | null {
+  /** Désigne l'élément sous le pointeur (poste, véhicule ou salle). */
+  pick(clientX: number, clientY: number): ScenePick | null {
     const rect = this.canvas.getBoundingClientRect();
     this.pointer.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.intersectObjects(this.hitboxes, false)[0];
-    return (hit?.object.userData['deskId'] as string | undefined) ?? null;
+    const hit = this.raycaster.intersectObjects([...this.hitboxes, ...this.siteHitboxes], false)[0];
+    return (hit?.object.userData['pick'] as ScenePick | undefined) ?? null;
   }
 
   /** Survol : met en évidence le poste sous le pointeur. Retourne true si le survol a changé. */
   hover(clientX: number, clientY: number): boolean {
-    const id = this.pick(clientX, clientY);
-    if (id === this.hovered) return false;
-    if (this.hovered) this.markers.get(this.hovered)?.scale.set(1, 1, 1);
-    this.hovered = id;
-    if (id) this.markers.get(id)?.scale.set(1.12, 1.12, 1.12);
+    const pick = this.pick(clientX, clientY);
+    const key = pick ? pickKey(pick) : null;
+    if (key === this.hovered) return false;
+    if (this.hovered && this.hovered.startsWith('desk:'))
+      this.markers.get(this.hovered)?.scale.set(1, 1, 1);
+    this.hovered = key;
+    if (key && key.startsWith('desk:')) this.markers.get(key)?.scale.set(1.12, 1.12, 1.12);
     this.requestRender();
     return true;
   }
@@ -403,13 +476,11 @@ export class OfficeScene {
   private viewHalfSize(): number {
     const w = (this.detail?.width ?? 1000) * S;
     const d = (this.detail?.height ?? 560) * S;
-    return Math.max(w, d) * 0.62;
+    return Math.max(w, d) * 0.56;
   }
 
   private frameCamera(detail: FloorDetail): void {
-    const w = detail.width * S;
-    const d = detail.height * S;
-    const c = new THREE.Vector3(w / 2, 0, d / 2 + 2);
+    const c = new THREE.Vector3((detail.width * S) / 2, 0, (detail.height * S) / 2 + 2);
     this.controls.target.copy(c);
     this.camera.position.set(c.x + 30, 30, c.z + 30);
     this.camera.zoom = 1;
@@ -431,14 +502,20 @@ export class OfficeScene {
 
   // ----- Étages -------------------------------------------------------------
 
-  private transitionTo(detail: FloorDetail, desks: readonly SceneDesk[], signature: string): void {
+  private transitionTo(
+    detail: FloorDetail,
+    desks: readonly SceneDesk[],
+    vehicles: readonly SceneVehicle[],
+    rooms: readonly SceneRoom[],
+    signature: string,
+  ): void {
     const previous = this.floorGroup;
     this.detail = detail;
     this.floorId = detail.id;
     this.builtSignature = signature;
-    this.ensureSite(detail);
+    this.ensureSite(detail, vehicles);
 
-    const incoming = this.buildFloorGroup(detail, desks);
+    const incoming = this.buildFloorGroup(detail, desks, rooms);
     incoming.position.y = FLOOR_GAP;
     this.scene.add(incoming);
     this.floorGroup = incoming;
@@ -465,8 +542,9 @@ export class OfficeScene {
   private buildFloor(
     detail: FloorDetail,
     desks: readonly SceneDesk[],
+    vehicles: readonly SceneVehicle[],
+    rooms: readonly SceneRoom[],
     signature: string,
-    y: number,
   ): void {
     if (this.floorGroup) {
       this.scene.remove(this.floorGroup);
@@ -475,9 +553,8 @@ export class OfficeScene {
     this.detail = detail;
     this.floorId = detail.id;
     this.builtSignature = signature;
-    this.ensureSite(detail);
-    const group = this.buildFloorGroup(detail, desks);
-    group.position.y = y;
+    this.ensureSite(detail, vehicles);
+    const group = this.buildFloorGroup(detail, desks, rooms);
     this.scene.add(group);
     this.floorGroup = group;
     this.hitboxes = this.collectHitboxes(group);
@@ -486,7 +563,7 @@ export class OfficeScene {
   private collectHitboxes(group: THREE.Group): THREE.Mesh[] {
     const out: THREE.Mesh[] = [];
     group.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj.userData['hitbox']) out.push(obj as THREE.Mesh);
+      if (obj instanceof THREE.Mesh && obj.userData['pick']) out.push(obj as THREE.Mesh);
     });
     return out;
   }
@@ -497,18 +574,30 @@ export class OfficeScene {
     });
   }
 
+  private paint(key: string, color: number, opacity: number): void {
+    const marker = this.markers.get(key);
+    if (!marker) return;
+    const material = marker.material as THREE.MeshBasicMaterial;
+    material.color.setHex(color);
+    material.opacity = opacity;
+  }
+
   // ----- Construction de l'étage --------------------------------------------
 
-  private buildFloorGroup(detail: FloorDetail, desks: readonly SceneDesk[]): THREE.Group {
+  private buildFloorGroup(
+    detail: FloorDetail,
+    desks: readonly SceneDesk[],
+    rooms: readonly SceneRoom[],
+  ): THREE.Group {
     const group = new THREE.Group();
-    this.markers.clear();
+    // Repères du plan : on repart de zéro pour les postes et les salles de cet étage.
+    for (const key of [...this.markers.keys()]) {
+      if (key.startsWith('desk:') || key.startsWith('room:')) this.markers.delete(key);
+    }
     const w = detail.width * S;
     const d = detail.height * S;
 
-    // Dalle et sol.
     group.add(this.plane(w, d, PALETTE.openspace, w / 2, 0.005, d / 2));
-
-    // Bâtiment en coupe : murs Nord et Ouest hauts, Sud et Est bas.
     this.addShell(group, w, d);
 
     for (const zone of detail.zones) {
@@ -517,12 +606,54 @@ export class OfficeScene {
       else this.buildOpenspace(group, zone);
     }
 
-    // Postes : bureau, écran, chaise côté utilisateur.
+    // Salles réservables : repère de disponibilité sur la zone, zone cliquable.
+    for (const room of rooms) {
+      const zone = detail.zones.find((z) => z.kind === 'room' && z.name === room.zoneName);
+      if (!zone) continue;
+      this.addRoomMarker(group, room, zone);
+    }
+
     for (const desk of desks) {
       if (!desk.isActive) continue;
       this.buildDesk(group, desk);
     }
     return group;
+  }
+
+  private addRoomMarker(
+    group: THREE.Group,
+    room: SceneRoom,
+    zone: FloorDetail['zones'][number],
+  ): void {
+    const x0 = zone.x * S;
+    const z0 = zone.y * S;
+    const zw = zone.width * S;
+    const zd = zone.height * S;
+    const cx = x0 + zw / 2;
+    const cz = z0 + zd / 2;
+    const key = pickKey({ kind: 'room', id: room.id });
+
+    const marker = new THREE.Mesh(
+      new THREE.PlaneGeometry(zw * 0.96, zd * 0.96),
+      new THREE.MeshBasicMaterial({
+        color: RESOURCE_COLOR[room.state],
+        transparent: true,
+        opacity: 0.32,
+        depthWrite: false,
+      }),
+    );
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.set(cx, 0.02, cz);
+    group.add(marker);
+    this.markers.set(key, marker);
+
+    const hit = new THREE.Mesh(
+      new THREE.BoxGeometry(zw, 1.8, zd),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+    );
+    hit.position.set(cx, 0.9, cz);
+    hit.userData['pick'] = { kind: 'room', id: room.id } satisfies ScenePick;
+    group.add(hit);
   }
 
   private addShell(group: THREE.Group, w: number, d: number): void {
@@ -551,10 +682,8 @@ export class OfficeScene {
     group.add(this.plane(zw, zd, PALETTE.roomCarpet, cx, 0.008, cz));
     this.addRoomWalls(group, x0, z0, zw, zd, WALL_HIGH - 0.4);
 
-    // Écran mural sur la cloison Nord.
     group.add(this.box(zw * 0.5, 0.9, 0.05, this.material(0x1e293b, 0.4), cx, 1.5, z0 + 0.12));
 
-    // Grande table ronde, six chaises autour, tapis dessous.
     const table = this.fit(this.model('table-round'), { footprint: Math.min(zw, zd) * 0.62 });
     this.anchor(table, cx, cz);
     group.add(table);
@@ -583,7 +712,6 @@ export class OfficeScene {
     group.add(this.plane(zw, zd, PALETTE.kitchenTile, x0 + zw / 2, 0.008, z0 + zd / 2));
     this.addRoomWalls(group, x0, z0, zw, zd, WALL_HIGH - 0.4);
 
-    // Plan de travail et placards hauts le long du mur Nord.
     const counterW = zw - 1.2;
     group.add(
       this.box(
@@ -618,7 +746,6 @@ export class OfficeScene {
         z0 + 0.2,
       ),
     );
-    // Évier et plaque de cuisson (détails sur le plan de travail).
     group.add(
       this.box(0.5, 0.02, 0.36, this.material(0x94a3b8, 0.2), x0 + zw * 0.45, 1.03, z0 + 0.45),
     );
@@ -630,7 +757,6 @@ export class OfficeScene {
     this.anchor(fridge, x0 + zw - 0.45, z0 + 0.5);
     group.add(fridge);
 
-    // Îlot central avec deux tabourets côté Sud.
     const islandW = zw * 0.42;
     const islandX = x0 + zw * 0.3;
     const islandZ = z0 + zd * 0.55;
@@ -666,7 +792,7 @@ export class OfficeScene {
     group.add(plant);
   }
 
-  /** Décor de l'open space : plantes, canapé d'accueil, bibliothèque, porte-manteau, poubelles. */
+  /** Décor de l'open space : plantes, coin détente, bibliothèque, porte-manteau, poubelles. */
   private buildOpenspace(group: THREE.Group, zone: FloorDetail['zones'][number]): void {
     const x0 = zone.x * S;
     const z0 = zone.y * S;
@@ -674,7 +800,6 @@ export class OfficeScene {
     const zd = zone.height * S;
     group.add(this.plane(zw, zd, PALETTE.openspace, x0 + zw / 2, 0.007, z0 + zd / 2));
 
-    // Plantes dans les angles.
     const corners: [number, number, number][] = [
       [x0 + 0.4, z0 + 0.4, 1.5],
       [x0 + zw - 0.4, z0 + 0.4, 1.7],
@@ -687,7 +812,6 @@ export class OfficeScene {
       group.add(plant);
     }
 
-    // Coin détente : canapé, table basse, tapis et lampe.
     const loungeX = x0 + 0.9;
     const loungeZ = z0 + zd * 0.78;
     const rug = this.fit(this.model('rug'), { footprint: 2.8 });
@@ -703,7 +827,6 @@ export class OfficeScene {
     this.anchor(lamp, loungeX + 2.6, loungeZ - 0.9);
     group.add(lamp);
 
-    // Bibliothèque et plantes le long du mur Ouest.
     const shelf = this.fit(this.model('bookcase'), { height: 2.1 });
     this.anchor(shelf, x0 + 0.5, z0 + zd * 0.42);
     shelf.rotation.y = Math.PI / 2;
@@ -712,7 +835,6 @@ export class OfficeScene {
     this.anchor(plantW, x0 + 0.5, z0 + zd * 0.2);
     group.add(plantW);
 
-    // Porte-manteau et poubelle près de l'angle Est.
     const coat = this.fit(this.model('coat-rack'), { height: 1.8 });
     this.anchor(coat, x0 + zw - 0.5, z0 + zd * 0.5);
     group.add(coat);
@@ -720,7 +842,6 @@ export class OfficeScene {
     this.anchor(bin, x0 + zw - 0.8, z0 + zd * 0.68);
     group.add(bin);
 
-    // Plantes intermédiaires entre les rangées de postes.
     for (const px of [0.25, 0.5, 0.75]) {
       const p = this.fit(this.model('plant-small'), { height: 0.95 });
       this.anchor(p, x0 + zw * px, z0 + zd * 0.5);
@@ -743,59 +864,60 @@ export class OfficeScene {
     this.anchor(monitor, cx, cz - d * 0.25);
     group.add(monitor);
 
-    // La chaise est du côté de l'utilisateur (Sud du bureau), tournée vers le bureau (Nord).
     const chair = this.fit(this.model('chair-desk'), { height: 0.95 });
     this.anchor(chair, cx, cz + d * 0.95);
     chair.rotation.y = 0;
     group.add(chair);
 
-    // Repère d'état au sol ; zone de survol agrandie.
+    const key = pickKey({ kind: 'desk', id: desk.id });
     const marker = new THREE.Mesh(
       new THREE.PlaneGeometry(w * 1.12, d * 1.12),
       new THREE.MeshBasicMaterial({
-        color: STATE_COLOR[desk.state],
+        color: DESK_COLOR[desk.state],
         transparent: true,
         opacity: 0.9,
       }),
     );
     marker.rotation.x = -Math.PI / 2;
     marker.position.set(cx, 0.02, cz);
-    marker.userData['deskId'] = desk.id;
     group.add(marker);
-    this.markers.set(desk.id, marker);
+    this.markers.set(key, marker);
 
     const hit = new THREE.Mesh(
       new THREE.BoxGeometry(w * 1.1, 1.6, d * 1.1),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
     );
     hit.position.set(cx, 0.8, cz);
-    hit.userData['deskId'] = desk.id;
-    hit.userData['hitbox'] = true;
+    hit.userData['pick'] = { kind: 'desk', id: desk.id } satisfies ScenePick;
     group.add(hit);
   }
 
   // ----- Site extérieur : parking, véhicules, arbres ------------------------
 
-  private ensureSite(detail: FloorDetail): void {
-    const key = `${detail.width}x${detail.height}`;
-    if (this.siteGroup && this.siteGroup.userData['key'] === key) return;
+  /** Reconstruit le site si ses dimensions ou la liste des véhicules changent. */
+  private ensureSite(detail: FloorDetail, vehicles: readonly SceneVehicle[]): void {
+    const key = `${detail.width}x${detail.height}|${vehicles.map((v) => v.id).join(',')}`;
+    if (this.siteGroup && this.siteKey === key) return;
     if (this.siteGroup) {
       this.scene.remove(this.siteGroup);
       this.disposeGroup(this.siteGroup);
+      for (const k of [...this.markers.keys()]) {
+        if (k.startsWith('vehicle:')) this.markers.delete(k);
+      }
     }
-    this.siteGroup = this.buildSite(detail);
-    this.siteGroup.userData['key'] = key;
+    this.siteGroup = this.buildSite(detail, vehicles);
+    this.siteKey = key;
     this.scene.add(this.siteGroup);
   }
 
-  private buildSite(detail: FloorDetail): THREE.Group {
+  private buildSite(detail: FloorDetail, vehicles: readonly SceneVehicle[]): THREE.Group {
     const site = new THREE.Group();
+    this.siteHitboxes = [];
     const w = detail.width * S;
     const d = detail.height * S;
     const left = -SITE_MARGIN;
     const right = w + SITE_MARGIN;
 
-    // Terrain autour du bâtiment et du parking.
     site.add(
       this.plane(
         right - left,
@@ -810,47 +932,55 @@ export class OfficeScene {
     // Parking devant le bâtiment (côté Sud, face à la caméra).
     const parkZ0 = d + 1.2;
     const parkZ1 = d + 7.6;
-    site.add(
-      this.plane(w + 6, parkZ1 - parkZ0, PALETTE.asphalt, w / 2, 0.003, (parkZ0 + parkZ1) / 2),
-    );
+    const parkZ = (parkZ0 + parkZ1) / 2;
+    site.add(this.plane(w + 6, parkZ1 - parkZ0, PALETTE.asphalt, w / 2, 0.003, parkZ));
 
-    const slotW = 2.2;
-    const slots = Math.floor((w + 4) / slotW);
+    const slots = Math.floor((w + 4) / SLOT_W);
     const paint = this.material(PALETTE.paint, 0.7);
     for (let i = 0; i <= slots; i++) {
-      const x = -2 + i * slotW;
-      site.add(this.box(0.05, 0.01, parkZ1 - parkZ0 - 0.6, paint, x, 0.01, (parkZ0 + parkZ1) / 2));
+      const x = -2 + i * SLOT_W;
+      site.add(this.box(0.05, 0.01, parkZ1 - parkZ0 - 0.6, paint, x, 0.01, parkZ));
     }
 
-    // Véhicules de fonction : une voiture sur quatre places, orientées vers le bâtiment.
-    const cars: ModelName[] = [
-      'car-sedan',
-      'car-suv',
-      'car-sports',
-      'car-hatch',
-      'car-van',
-      'car-taxi',
-    ];
-    const carColors = [0xf8fafc, 0x2f54c6, 0x9aa5b5, 0x1e293b];
-    let carIndex = 0;
-    for (let i = 0; i < slots; i++) {
-      if (i % 4 === 1) continue;
-      const x = -2 + (i + 0.5) * slotW;
-      const car = this.fit(this.model(cars[carIndex % cars.length] ?? 'car-sedan'), {
-        footprint: 1.9,
-      });
-      this.anchor(car, x, (parkZ0 + parkZ1) / 2);
+    // Un véhicule de fonction par place réservable : on n'affiche que la flotte réelle.
+    vehicles.forEach((vehicle, index) => {
+      const slotIndex = index * 2 + 1;
+      const x = -2 + (slotIndex + 0.5) * SLOT_W;
+      const z = slotIndex < slots ? parkZ : parkZ + 2.6;
+      const model = CAR_MODELS[index % CAR_MODELS.length] ?? 'car-sedan';
+      const car = this.fit(this.model(model), { footprint: 1.9 });
+      this.anchor(car, x, z);
       car.rotation.y = Math.PI / 2;
-      this.tintBody(car, carColors[carIndex % carColors.length] ?? 0xffffff);
+      this.tintBody(car, CAR_COLORS[index % CAR_COLORS.length] ?? 0xffffff);
       site.add(car);
-      carIndex++;
-    }
 
-    // Voie de circulation et bordure.
+      const key = pickKey({ kind: 'vehicle', id: vehicle.id });
+      const marker = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.1, 2.1),
+        new THREE.MeshBasicMaterial({
+          color: RESOURCE_COLOR[vehicle.state],
+          transparent: true,
+          opacity: 0.9,
+        }),
+      );
+      marker.rotation.x = -Math.PI / 2;
+      marker.position.set(x, 0.02, z);
+      site.add(marker);
+      this.markers.set(key, marker);
+
+      const hit = new THREE.Mesh(
+        new THREE.BoxGeometry(2.3, 1.8, 2.3),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
+      );
+      hit.position.set(x, 0.9, z);
+      hit.userData['pick'] = { kind: 'vehicle', id: vehicle.id } satisfies ScenePick;
+      site.add(hit);
+      this.siteHitboxes.push(hit);
+    });
+
     site.add(this.plane(w + 6, 2.6, PALETTE.curb, w / 2, 0.004, parkZ1 + 1.4));
     site.add(this.plane(w + 6, 0.1, PALETTE.paint, w / 2, 0.006, parkZ1 + 0.1));
 
-    // Arbres et haies autour du site.
     const trees: [ModelName, number, number, number][] = [
       ['tree-oak', left + 1.5, 2, 3.6],
       ['tree-default', left + 1.2, d * 0.5, 3.2],
@@ -963,9 +1093,16 @@ export class OfficeScene {
     );
     for (const [name, root] of loaded) {
       root.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
-          obj.castShadow = true;
-          obj.receiveShadow = true;
+        if (!(obj instanceof THREE.Mesh)) return;
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+        // Décor : normales lissées pour un rendu moins facetté (les voitures gardent leurs normales).
+        if (!isCar(name)) {
+          const mesh = obj as THREE.Mesh<THREE.BufferGeometry>;
+          mesh.geometry = smoothGeometry(mesh.geometry);
+          const m = obj.material as THREE.MeshStandardMaterial;
+          m.flatShading = false;
+          m.needsUpdate = true;
         }
       });
       this.models.set(name, root);

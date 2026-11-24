@@ -2,8 +2,8 @@
 // contre la double réservation, même en cas de requêtes simultanées.
 
 generator client {
-  provider   = "prisma-client"
-  output     = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
   moduleFormat = "esm"
 }
 
@@ -28,30 +28,33 @@ enum BookingStatus {
 }
 
 model Team {
-  id       String @id @default(cuid())
-  name     String @unique
-  color    String
-  users    User[]
-  desks    Desk[]
+  id    String @id @default(cuid())
+  name  String @unique
+  color String
+  users User[]
+  desks Desk[]
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String  @id @default(cuid())
+  email        String  @unique
   passwordHash String
   firstName    String
   lastName     String
-  role         Role     @default(EMPLOYEE)
+  role         Role    @default(EMPLOYEE)
   teamId       String?
-  team         Team?    @relation(fields: [teamId], references: [id])
+  team         Team?   @relation(fields: [teamId], references: [id])
 
-  bookings     Booking[]     @relation("BookingUser")
-  createdBookings Booking[]  @relation("BookingCreator")
-  vehicleBookings VehicleBooking[] @relation("VehicleBookingUser")
+  bookings               Booking[]        @relation("BookingUser")
+  createdBookings        Booking[]        @relation("BookingCreator")
+  vehicleBookings        VehicleBooking[] @relation("VehicleBookingUser")
   createdVehicleBookings VehicleBooking[] @relation("VehicleBookingCreator")
-  vehicleSlots VehicleSlot[] @relation("VehicleSlotUser")
-  slots        BookingSlot[]
-  auditLogs    AuditLog[]
+  roomBookings           RoomBooking[]    @relation("RoomBookingUser")
+  createdRoomBookings    RoomBooking[]    @relation("RoomBookingCreator")
+  roomSlots              RoomSlot[]       @relation("RoomSlotUser")
+  vehicleSlots           VehicleSlot[]    @relation("VehicleSlotUser")
+  slots                  BookingSlot[]
+  auditLogs              AuditLog[]
 }
 
 model Floor {
@@ -62,12 +65,13 @@ model Floor {
   /// Zones décoratives : [{ name, kind, x, y, width, height }]
   zones  Json
   desks  Desk[]
+  rooms  Room[]
 }
 
 model Desk {
-  id             String        @id @default(cuid())
+  id             String   @id @default(cuid())
   floorId        String
-  floor          Floor         @relation(fields: [floorId], references: [id])
+  floor          Floor    @relation(fields: [floorId], references: [id])
   label          String
   x              Int
   y              Int
@@ -75,11 +79,11 @@ model Desk {
   height         Int
   features       String[]
   reservedTeamId String?
-  reservedTeam   Team?         @relation(fields: [reservedTeamId], references: [id])
-  isActive       Boolean       @default(true)
+  reservedTeam   Team?    @relation(fields: [reservedTeamId], references: [id])
+  isActive       Boolean  @default(true)
 
-  bookings       Booking[]
-  slots          BookingSlot[]
+  bookings Booking[]
+  slots    BookingSlot[]
 
   @@unique([floorId, label])
 }
@@ -96,7 +100,7 @@ model Booking {
   createdBy   User          @relation("BookingCreator", fields: [createdById], references: [id])
   createdAt   DateTime      @default(now())
 
-  slots       BookingSlot[]
+  slots BookingSlot[]
 
   @@index([userId, date])
   @@index([deskId, date])
@@ -120,7 +124,7 @@ model BookingSlot {
 }
 
 model Settings {
-  id            Int @id @default(1)
+  id             Int @id @default(1)
   maxAdvanceDays Int @default(14)
   weeklyQuota    Int @default(3)
 }
@@ -144,10 +148,10 @@ model AuditLog {
 // avoir un poste et un véhicule le même matin.
 
 model Vehicle {
-  id       String   @id @default(cuid())
-  name     String
-  plate    String   @unique
-  isActive Boolean  @default(true)
+  id        String   @id @default(cuid())
+  name      String
+  plate     String   @unique
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
   bookings VehicleBooking[]
@@ -155,35 +159,88 @@ model Vehicle {
 }
 
 model VehicleBooking {
-  id        String        @id @default(cuid())
-  vehicleId String
-  vehicle   Vehicle       @relation(fields: [vehicleId], references: [id])
-  userId    String
-  user      User          @relation("VehicleBookingUser", fields: [userId], references: [id])
-  date      DateTime      @db.Date
-  status    BookingStatus @default(ACTIVE)
+  id          String        @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle       @relation(fields: [vehicleId], references: [id])
+  userId      String
+  user        User          @relation("VehicleBookingUser", fields: [userId], references: [id])
+  date        DateTime      @db.Date
+  status      BookingStatus @default(ACTIVE)
   createdById String
-  createdBy User          @relation("VehicleBookingCreator", fields: [createdById], references: [id])
-  createdAt DateTime      @default(now())
+  createdBy   User          @relation("VehicleBookingCreator", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
 
-  slots     VehicleSlot[]
+  slots VehicleSlot[]
 
   @@index([userId, date])
   @@index([vehicleId, date])
 }
 
 model VehicleSlot {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   bookingId String
   booking   VehicleBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   vehicleId String
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  vehicle   Vehicle        @relation(fields: [vehicleId], references: [id])
   userId    String
-  user      User     @relation("VehicleSlotUser", fields: [userId], references: [id])
-  date      DateTime @db.Date
+  user      User           @relation("VehicleSlotUser", fields: [userId], references: [id])
+  date      DateTime       @db.Date
   half      Half
 
   @@unique([vehicleId, date, half])
+  @@unique([userId, date, half])
+  @@index([bookingId])
+}
+
+// ----- Salles de réunion réservables ---------------------------------------
+// Une salle est rattachée à une zone du plan (zoneName) pour être cliquable en 3D.
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String
+  zoneName  String
+  floorId   String
+  floor     Floor    @relation(fields: [floorId], references: [id])
+  capacity  Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  bookings RoomBooking[]
+  slots    RoomSlot[]
+
+  @@unique([floorId, zoneName])
+}
+
+model RoomBooking {
+  id          String        @id @default(cuid())
+  roomId      String
+  room        Room          @relation(fields: [roomId], references: [id])
+  userId      String
+  user        User          @relation("RoomBookingUser", fields: [userId], references: [id])
+  date        DateTime      @db.Date
+  status      BookingStatus @default(ACTIVE)
+  createdById String
+  createdBy   User          @relation("RoomBookingCreator", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+
+  slots RoomSlot[]
+
+  @@index([userId, date])
+  @@index([roomId, date])
+}
+
+model RoomSlot {
+  id        String      @id @default(cuid())
+  bookingId String
+  booking   RoomBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  roomId    String
+  room      Room        @relation(fields: [roomId], references: [id])
+  userId    String
+  user      User        @relation("RoomSlotUser", fields: [userId], references: [id])
+  date      DateTime    @db.Date
+  half      Half
+
+  @@unique([roomId, date, half])
   @@unique([userId, date, half])
   @@index([bookingId])
 }

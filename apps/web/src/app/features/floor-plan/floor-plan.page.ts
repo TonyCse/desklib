@@ -17,7 +17,9 @@ import type {
   Availability,
   FloorDetail,
   FloorSummary,
+  HalfAvailability,
   HalfInput,
+  HalfKey,
   Settings,
 } from '../../core/models';
 import { LayoutService } from '../../core/layout/layout.service';
@@ -32,10 +34,54 @@ import { DESK_STATE_META } from './desk-status';
 import { DeskPopoverComponent } from './desk-popover.component';
 import type { DeskView } from './desk-view';
 import { buildDeskView } from './desk-view';
-import type { SceneDesk } from './scene3d/office-scene';
+import type {
+  ResourceState,
+  SceneDesk,
+  ScenePick,
+  SceneRoom,
+  SceneVehicle,
+} from './scene3d/office-scene';
+import { ResourcePanelComponent } from './resource-panel.component';
 import { FloorScene3dComponent } from './scene3d/floor-scene-3d.component';
 
 type ViewMode = 'plan' | '3d' | 'list';
+
+/** Disponibilité des véhicules de fonction (tous étages : parc unique). */
+interface VehiclesResponse {
+  date: string;
+  viewer: Record<HalfKey, boolean>;
+  vehicles: {
+    id: string;
+    name: string;
+    plate: string;
+    halves: Record<HalfKey, HalfAvailability>;
+  }[];
+}
+
+/** Disponibilité des salles de réunion d'un étage. */
+interface RoomsResponse {
+  date: string;
+  viewer: Record<HalfKey, boolean>;
+  rooms: {
+    id: string;
+    name: string;
+    zoneName: string;
+    capacity: number;
+    halves: Record<HalfKey, HalfAvailability>;
+  }[];
+}
+
+type ResourceSelection = { kind: 'vehicle' | 'room'; id: string };
+
+/** Résumé d'une ressource pour la scène : libre, partielle, à moi, ou réservée. */
+function summaryState(halves: Record<HalfKey, HalfAvailability>): ResourceState {
+  const am = halves.AM.status;
+  const pm = halves.PM.status;
+  if (am === 'MINE' || pm === 'MINE') return 'MINE';
+  if (am === 'FREE' && pm === 'FREE') return 'FREE';
+  if (am === 'FREE' || pm === 'FREE') return 'PARTIAL';
+  return 'BOOKED';
+}
 
 const MOBILE_QUERY = '(max-width: 767px)';
 
@@ -75,6 +121,7 @@ const DESK_TONE: Record<DeskState, BadgeTone> = {
     BadgeComponent,
     FloorScene3dComponent,
     DeskPopoverComponent,
+    ResourcePanelComponent,
     RouterLink,
     RouterLinkActive,
   ],
@@ -132,6 +179,9 @@ export class FloorPlanPage {
 
   // Poste sélectionné (panneau de détail) et réservation en cours.
   protected readonly selectedDeskId = signal<string | null>(null);
+  protected readonly selectedResource = signal<ResourceSelection | null>(null);
+  protected readonly vehiclesAvail = signal<VehiclesResponse | null>(null);
+  protected readonly roomsAvail = signal<RoomsResponse | null>(null);
   protected readonly bookingBusy = signal(false);
 
   protected readonly desks = computed<DeskView[]>(() => {
@@ -159,6 +209,41 @@ export class FloorPlanPage {
   });
 
   /** Postes tels qu'attendus par la scène 3D (géométrie et état). */
+  protected readonly sceneVehicles = computed<SceneVehicle[]>(() =>
+    (this.vehiclesAvail()?.vehicles ?? []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      state: summaryState(v.halves),
+    })),
+  );
+
+  protected readonly sceneRooms = computed<SceneRoom[]>(() =>
+    (this.roomsAvail()?.rooms ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      zoneName: r.zoneName,
+      state: summaryState(r.halves),
+    })),
+  );
+
+  protected readonly selectedVehicle = computed(() => {
+    const sel = this.selectedResource();
+    if (sel?.kind !== 'vehicle') return null;
+    return this.vehiclesAvail()?.vehicles.find((v) => v.id === sel.id) ?? null;
+  });
+
+  protected readonly selectedRoom = computed(() => {
+    const sel = this.selectedResource();
+    if (sel?.kind !== 'room') return null;
+    return this.roomsAvail()?.rooms.find((r) => r.id === sel.id) ?? null;
+  });
+
+  protected readonly resourceViewer = computed<Record<HalfKey, boolean>>(() => {
+    const sel = this.selectedResource();
+    const source = sel?.kind === 'room' ? this.roomsAvail() : this.vehiclesAvail();
+    return source?.viewer ?? { AM: false, PM: false };
+  });
+
   protected readonly sceneDesks = computed<SceneDesk[]>(() =>
     this.desks().map((d) => ({
       id: d.id,
@@ -230,6 +315,12 @@ export class FloorPlanPage {
     switchMap((s) =>
       forkJoin({
         detail: this.http.get<FloorDetail>(`/api/floors/${s.floorId}`),
+        vehicles: this.http.get<VehiclesResponse>('/api/vehicles/availability', {
+          params: { date: s.date },
+        }),
+        rooms: this.http.get<RoomsResponse>('/api/rooms/availability', {
+          params: { date: s.date, floorId: s.floorId },
+        }),
         availability: this.http.get<Availability>(`/api/floors/${s.floorId}/availability`, {
           params: { date: s.date },
         }),
@@ -249,9 +340,11 @@ export class FloorPlanPage {
     this.layout.setImmersive(true);
     this.destroyRef.onDestroy(() => this.layout.setImmersive(false));
 
-    this.loadFloor$.subscribe(({ detail, availability }) => {
+    this.loadFloor$.subscribe(({ detail, availability, vehicles, rooms }) => {
       this.detail.set(detail);
       this.availability.set(availability);
+      this.vehiclesAvail.set(vehicles);
+      this.roomsAvail.set(rooms);
       this.loading.set(false);
     });
   }
@@ -332,17 +425,30 @@ export class FloorPlanPage {
     this.zoneFilter.set(value);
   }
 
+  /** Zoom du plan (1 = taille de la fenêtre). */
+  protected readonly planZoom = signal(1);
+
+  protected zoomPlan(factor: number): void {
+    this.planZoom.update((z) => Math.min(3, Math.max(0.6, z * factor)));
+  }
+
+  protected resetPlan(): void {
+    this.planZoom.set(1);
+  }
+
   protected retry(): void {
     this.refreshVersion.update((v) => v + 1);
   }
 
   /** Sélection d'un poste (clic, Entrée, ou clic dans la scène 3D) : ouvre le panneau de détail. */
   protected select(desk: DeskView): void {
+    this.selectedResource.set(null);
     this.selectedDeskId.set(desk.id);
   }
 
   protected clearSelection(): void {
     this.selectedDeskId.set(null);
+    this.selectedResource.set(null);
   }
 
   protected openFromPlan(desk: DeskView): void {
@@ -356,9 +462,43 @@ export class FloorPlanPage {
     }
   }
 
-  protected onScenePick(event: { deskId: string }): void {
-    const desk = this.deskById().get(event.deskId);
-    if (desk) this.select(desk);
+  /** Clic dans la scène 3D : poste, véhicule ou salle. */
+  protected onScenePick(pick: ScenePick): void {
+    if (pick.kind === 'desk') {
+      const desk = this.deskById().get(pick.id);
+      if (desk) this.select(desk);
+      return;
+    }
+    this.selectedDeskId.set(null);
+    this.selectedResource.set({ kind: pick.kind, id: pick.id });
+  }
+
+  /** Réservation du véhicule ou de la salle sélectionné(e), pour une demi-journée ou la journée. */
+  protected bookSelectedResource(half: HalfInput): void {
+    const sel = this.selectedResource();
+    const date = this.date();
+    if (!sel || !date) return;
+    const isVehicle = sel.kind === 'vehicle';
+    const url = isVehicle ? '/api/vehicle-bookings' : '/api/room-bookings';
+    const body = isVehicle ? { vehicleId: sel.id, date, half } : { roomId: sel.id, date, half };
+    const label = isVehicle ? this.selectedVehicle()?.name : this.selectedRoom()?.name;
+    const what = half === 'FULL' ? 'la journée' : half === 'AM' ? 'le matin' : 'l’après-midi';
+
+    this.bookingBusy.set(true);
+    this.http
+      .post(url, body)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.bookingBusy.set(false);
+          this.toast.success(
+            `${label ?? 'Ressource'} réservé${isVehicle ? '' : 'e'} ${what}, ${formatDayFr(date)}.`,
+          );
+          this.refreshVersion.update((v) => v + 1);
+        },
+        // L'intercepteur affiche le motif métier (créneau pris, quota…).
+        error: () => this.bookingBusy.set(false),
+      });
   }
 
   protected logout(): void {

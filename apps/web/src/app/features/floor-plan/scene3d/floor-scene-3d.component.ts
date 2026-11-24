@@ -1,5 +1,4 @@
-import type { AfterViewInit, OnDestroy ,
-  ElementRef} from '@angular/core';
+import type { AfterViewInit, OnDestroy, ElementRef } from '@angular/core';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -12,12 +11,18 @@ import {
 } from '@angular/core';
 import type { FloorDetail } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/ui/feedback.components';
-import type { OfficeScene, SceneDesk, SceneView } from './office-scene';
+import type {
+  OfficeScene,
+  SceneDesk,
+  SceneRoom,
+  SceneVehicle,
+  ScenePick,
+  SceneView,
+} from './office-scene';
 
 /**
- * Vue 3D de l'étage. Three.js est chargé à la demande (import dynamique) : tant que la vue
- * n'est pas ouverte, ce code n'est pas téléchargé. Glisser fait tourner la scène, la molette zoome,
- * et un clic (sans glisser) sur un poste l'émet.
+ * Vue 3D de l'étage. Three.js est chargé à la demande (import dynamique). Glisser fait tourner la scène,
+ * la molette zoome, et un clic (sans glisser) sur un poste, un véhicule ou une salle l'émet.
  */
 @Component({
   selector: 'app-floor-scene-3d',
@@ -37,7 +42,11 @@ import type { OfficeScene, SceneDesk, SceneView } from './office-scene';
           detail().name +
           ', ' +
           desks().length +
-          ' postes. Cliquez sur un poste pour le réserver, ou utilisez la vue liste au clavier.'
+          ' postes, ' +
+          vehicles().length +
+          ' véhicules, ' +
+          rooms().length +
+          ' salles. Cliquez sur un élément pour le réserver, ou utilisez la vue plan ou liste au clavier.'
         "
         (pointerdown)="onPointerDown($event)"
         (pointerup)="onPointerUp($event)"
@@ -108,8 +117,10 @@ import type { OfficeScene, SceneDesk, SceneView } from './office-scene';
 export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
   readonly detail = input.required<FloorDetail>();
   readonly desks = input.required<readonly SceneDesk[]>();
-  /** Poste choisi (clic sans glisser). */
-  readonly deskPicked = output<{ deskId: string }>();
+  readonly vehicles = input<readonly SceneVehicle[]>([]);
+  readonly rooms = input<readonly SceneRoom[]>([]);
+  /** Élément choisi (clic sans glisser). */
+  readonly picked = output<ScenePick>();
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
@@ -126,7 +137,9 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
     effect(() => {
       const detail = this.detail();
       const desks = this.desks();
-      untracked(() => this.scene?.update(detail, desks));
+      const vehicles = this.vehicles();
+      const rooms = this.rooms();
+      untracked(() => this.scene?.update(detail, desks, vehicles, rooms));
     });
   }
 
@@ -164,8 +177,8 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
     this.downAt = null;
     if (!this.scene || !start) return;
     if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) return;
-    const deskId = this.scene.pick(event.clientX, event.clientY);
-    if (deskId) this.deskPicked.emit({ deskId });
+    const pick = this.scene.pick(event.clientX, event.clientY);
+    if (pick) this.picked.emit(pick);
   }
 
   protected onPointerMove(event: PointerEvent): void {
@@ -189,7 +202,7 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
       this.scene = scene;
       const host = this.host().nativeElement;
       scene.resize(host.clientWidth, host.clientHeight);
-      scene.update(this.detail(), this.desks());
+      scene.update(this.detail(), this.desks(), this.vehicles(), this.rooms());
       this.resizeObserver = new ResizeObserver(() => {
         this.scene?.resize(host.clientWidth, host.clientHeight);
       });

@@ -18,6 +18,8 @@ import {
   AuditQueryDto,
   CreateDeskDto,
   CreateVehicleDto,
+  CreateRoomDto,
+  UpdateRoomDto,
   UpdateVehicleDto,
   RangeQueryDto,
   UpdateDeskDto,
@@ -427,6 +429,108 @@ export class AdminService {
     }
   }
 
+  // ----- Salles -------------------------------------------------------------
+
+  listRooms() {
+    return this.prisma.room.findMany({
+      orderBy: [{ floor: { name: 'asc' } }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        zoneName: true,
+        capacity: true,
+        isActive: true,
+        floor: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async createRoom(actor: AuthUser, dto: CreateRoomDto) {
+    const floor = await this.prisma.floor.findUnique({
+      where: { id: dto.floorId },
+      select: { zones: true },
+    });
+    if (!floor) throw new BadRequestException('Étage inconnu');
+    const zones = (floor.zones as { name: string }[]) ?? [];
+    if (!zones.some((z) => z.name === dto.zoneName)) {
+      throw new BadRequestException(
+        'La zone indiquée n’existe pas sur cet étage',
+      );
+    }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const room = await tx.room.create({
+          data: {
+            name: dto.name,
+            zoneName: dto.zoneName,
+            floorId: dto.floorId,
+            capacity: dto.capacity,
+            isActive: dto.isActive ?? true,
+          },
+          select: {
+            id: true,
+            name: true,
+            zoneName: true,
+            capacity: true,
+            isActive: true,
+          },
+        });
+        await this.audit.record(
+          {
+            actorId: actor.id,
+            action: 'ROOM_CREATED',
+            entityType: 'Room',
+            entityId: room.id,
+            payload: { name: dto.name, zoneName: dto.zoneName },
+          },
+          tx,
+        );
+        return room;
+      });
+    } catch (error) {
+      throw toZoneConflict(error);
+    }
+  }
+
+  async updateRoom(actor: AuthUser, id: string, dto: UpdateRoomDto) {
+    const before = await this.prisma.room.findUnique({
+      where: { id },
+      select: { name: true, capacity: true, isActive: true },
+    });
+    if (!before) throw new NotFoundException('Salle introuvable');
+    return this.prisma.$transaction(async (tx) => {
+      const after = await tx.room.update({
+        where: { id },
+        data: dto,
+        select: {
+          id: true,
+          name: true,
+          zoneName: true,
+          capacity: true,
+          isActive: true,
+        },
+      });
+      await this.audit.record(
+        {
+          actorId: actor.id,
+          action: 'ROOM_UPDATED',
+          entityType: 'Room',
+          entityId: id,
+          payload: {
+            before,
+            after: {
+              name: after.name,
+              capacity: after.capacity,
+              isActive: after.isActive,
+            },
+          },
+        },
+        tx,
+      );
+      return after;
+    });
+  }
+
   // ----- Helpers  // ----- Helpers ------------------------------------------------------------
 
   private async assertFloorAndTeam(
@@ -455,6 +559,16 @@ function pick<T extends object>(source: T, dto: object): Partial<T> {
   return Object.fromEntries(
     keys.filter((k) => k in source).map((k) => [k, source[k]]),
   ) as Partial<T>;
+}
+
+function toZoneConflict(error: unknown): Error {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    return new ConflictException('Une salle existe déjà pour cette zone');
+  }
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function toPlateConflict(error: unknown): Error {

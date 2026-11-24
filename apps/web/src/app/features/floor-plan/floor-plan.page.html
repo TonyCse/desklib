@@ -13,23 +13,43 @@
       </div>
     } @else if (viewMode() === '3d') {
       @if (detail(); as plan) {
-        <app-floor-scene-3d class="block h-full w-full" [detail]="plan" [desks]="sceneDesks()" (deskPicked)="onScenePick($event)" />
+        <app-floor-scene-3d
+          class="block h-full w-full"
+          [detail]="plan"
+          [desks]="sceneDesks()"
+          [vehicles]="sceneVehicles()"
+          [rooms]="sceneRooms()"
+          (picked)="onScenePick($event)"
+        />
       }
     } @else if (viewMode() === 'plan') {
-      @if (detail(); as plan) {
-        <div class="absolute inset-0 flex items-center justify-center overflow-auto px-6 pb-40 pt-28">
+    @if (detail(); as plan) {
+      <div class="absolute inset-0 overflow-auto bg-[#eef3f9] pb-32 pt-28 md:pt-56" aria-label="Plan de l’étage">
+        <div class="flex min-h-full min-w-full items-center justify-center p-10">
           <svg
-            class="h-auto max-h-full w-full max-w-5xl text-ink-subtle"
-            [attr.viewBox]="'0 0 ' + plan.width + ' ' + plan.height"
+            class="w-auto max-w-none drop-shadow-sm"
+            [style.height]="'calc((100dvh - 23rem) * ' + planZoom() + ')'"
+            [attr.viewBox]="'-24 -24 ' + (plan.width + 48) + ' ' + (plan.height + 48)"
             role="group"
             [attr.aria-label]="'Plan de ' + plan.name + ', ' + desks().length + ' postes'"
           >
             <defs>
+              <pattern id="plan-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="1" class="fill-line-strong" />
+              </pattern>
+              <filter id="plan-shadow" x="-30%" y="-30%" width="160%" height="170%">
+                <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-opacity="0.16" />
+              </filter>
               <pattern id="ilot-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                 <rect width="3" height="6" class="fill-ink-subtle" />
               </pattern>
             </defs>
 
+            <!-- Fond et grille discrète -->
+            <rect x="-24" y="-24" [attr.width]="plan.width + 48" [attr.height]="plan.height + 48" rx="28" class="fill-[#f7f9fc]" />
+            <rect x="-24" y="-24" [attr.width]="plan.width + 48" [attr.height]="plan.height + 48" rx="28" fill="url(#plan-grid)" opacity="0.7" />
+
+            <!-- Zones : espaces ouverts plats, salles et cuisine légèrement teintées -->
             @for (zone of plan.zones; track zone.name) {
               <g aria-hidden="true">
                 <rect
@@ -37,72 +57,101 @@
                   [attr.y]="zone.y"
                   [attr.width]="zone.width"
                   [attr.height]="zone.height"
-                  rx="10"
-                  [class]="zone.kind === 'openspace' ? 'fill-canvas stroke-line' : 'fill-surface stroke-line-strong'"
+                  rx="14"
+                  [class]="zone.kind === 'openspace' ? 'fill-white stroke-line' : zone.kind === 'kitchen' ? 'fill-[#f1f5f9] stroke-line-strong' : 'fill-[#e4ecf7] stroke-line-strong'"
                   stroke-width="1.5"
+                  stroke-dasharray="none"
                 />
-                <text [attr.x]="zone.x + 12" [attr.y]="zone.y + 22" font-size="13" class="fill-ink-muted">
-                  {{ zone.name }}
+                <text
+                  [attr.x]="zone.x + 16"
+                  [attr.y]="zone.y + 26"
+                  font-size="11"
+                  font-weight="700"
+                  letter-spacing="0.4"
+                  class="fill-ink-subtle"
+                >
+                  {{ zone.name.toUpperCase() }}
                 </text>
               </g>
             }
 
+            <!-- Postes : cartes avec ombre, état par couleur, motif et symbole -->
             @for (desk of desks(); track desk.id) {
               <g
                 class="group cursor-pointer outline-none"
                 role="button"
                 tabindex="0"
                 [attr.aria-label]="desk.ariaLabel"
+                [attr.aria-pressed]="selectedDesk()?.id === desk.id"
                 (click)="openFromPlan(desk)"
                 (keydown)="onDeskKeydown(desk, $event)"
               >
                 <title>{{ hoverText(desk) }}</title>
+
+                <!-- Halo de focus clavier -->
                 <rect
-                  [attr.x]="desk.x - 4"
-                  [attr.y]="desk.y - 4"
-                  [attr.width]="desk.width + 8"
-                  [attr.height]="desk.height + 8"
-                  rx="9"
+                  [attr.x]="desk.x - 5"
+                  [attr.y]="desk.y - 5"
+                  [attr.width]="desk.width + 10"
+                  [attr.height]="desk.height + 10"
+                  rx="11"
                   class="fill-none stroke-accent opacity-0 group-focus-visible:opacity-100"
                   stroke-width="3"
                 />
+
+                <!-- Carte du poste -->
                 <rect
                   [attr.x]="desk.x"
                   [attr.y]="desk.y"
                   [attr.width]="desk.width"
                   [attr.height]="desk.height"
-                  rx="6"
+                  rx="8"
                   [class]="deskClass(desk.state)"
-                  stroke-width="2"
+                  filter="url(#plan-shadow)"
+                  stroke-width="1.5"
                   [attr.stroke-dasharray]="deskDash(desk.state)"
                 />
+
                 @if (desk.state === 'BOOKED') {
                   <rect
                     [attr.x]="desk.x"
                     [attr.y]="desk.y"
                     [attr.width]="desk.width"
                     [attr.height]="desk.height"
-                    rx="6"
+                    rx="8"
                     fill="url(#ilot-hatch)"
-                    opacity="0.35"
+                    opacity="0.3"
                   />
                 }
+
+                <!-- Survol : contour accentué ; sélection : contour plein et épais -->
+                <rect
+                  [attr.x]="desk.x"
+                  [attr.y]="desk.y"
+                  [attr.width]="desk.width"
+                  [attr.height]="desk.height"
+                  rx="8"
+                  class="fill-none stroke-accent opacity-0 transition-opacity group-hover:opacity-70"
+                  [class.!opacity-100]="selectedDesk()?.id === desk.id"
+                  stroke-width="2.5"
+                />
+
                 <text
                   [attr.x]="desk.x + desk.width / 2"
-                  [attr.y]="desk.y + 20"
+                  [attr.y]="desk.y + desk.height / 2 - 2"
                   text-anchor="middle"
                   font-size="12"
-                  font-weight="600"
+                  font-weight="700"
                   [class]="desk.state === 'MINE' ? 'fill-white' : 'fill-ink'"
                 >
                   {{ desk.label }}
                 </text>
                 <text
                   [attr.x]="desk.x + desk.width / 2"
-                  [attr.y]="desk.y + 38"
+                  [attr.y]="desk.y + desk.height / 2 + 12"
                   text-anchor="middle"
-                  font-size="13"
-                  [class]="desk.state === 'MINE' ? 'fill-white' : 'fill-ink'"
+                  font-size="11"
+                  [class]="desk.state === 'MINE' ? 'fill-white' : 'fill-ink-muted'"
                   aria-hidden="true"
                 >
                   {{ DESK_STATE_META[desk.state].symbol }}
@@ -111,8 +160,15 @@
             }
           </svg>
         </div>
-      }
-    } @else {
+      </div>
+
+      <div class="absolute bottom-40 left-4 z-10 flex flex-col gap-2" role="group" aria-label="Zoom du plan">
+        <button type="button" class="h-9 w-9 rounded-xl border border-white/70 bg-white/85 text-lg font-semibold shadow-pop backdrop-blur-md hover:bg-white" aria-label="Zoomer le plan" (click)="zoomPlan(1.25)">+</button>
+        <button type="button" class="h-9 w-9 rounded-xl border border-white/70 bg-white/85 text-lg font-semibold shadow-pop backdrop-blur-md hover:bg-white" aria-label="Dézoomer le plan" (click)="zoomPlan(0.8)">−</button>
+        <button type="button" class="rounded-xl border border-white/70 bg-white/85 px-2 py-1.5 text-xs font-medium shadow-pop backdrop-blur-md hover:bg-white" (click)="resetPlan()">Ajuster</button>
+      </div>
+    }
+  } @else {
       <!-- Vue liste : alternative accessible, dans un panneau flottant -->
       <div class="absolute inset-x-4 bottom-40 top-28 flex flex-col gap-3 overflow-auto rounded-2xl border border-white/70 bg-white/90 p-4 shadow-pop backdrop-blur-md">
         <fieldset class="flex flex-wrap items-center gap-3">
@@ -260,6 +316,35 @@
         [busy]="bookingBusy()"
         [viewerHalves]="viewerHalves()"
         (bookRequested)="book(desk, $event)"
+        (closeRequested)="clearSelection()"
+      />
+    </aside>
+  }
+
+  <!-- Détail d'un véhicule ou d'une salle sélectionné(e) dans la scène 3D -->
+  @if (selectedVehicle(); as vehicle) {
+    <aside class="absolute right-4 top-28 z-10 max-h-[calc(100%-13rem)] w-80 overflow-auto" aria-label="Détail du véhicule">
+      <app-resource-panel
+        kind="Véhicule de fonction"
+        [title]="vehicle.name"
+        [subtitle]="vehicle.plate"
+        [halves]="vehicle.halves"
+        [viewerHalves]="resourceViewer()"
+        [busy]="bookingBusy()"
+        (bookRequested)="bookSelectedResource($event)"
+        (closeRequested)="clearSelection()"
+      />
+    </aside>
+  } @else if (selectedRoom(); as room) {
+    <aside class="absolute right-4 top-28 z-10 max-h-[calc(100%-13rem)] w-80 overflow-auto" aria-label="Détail de la salle">
+      <app-resource-panel
+        kind="Salle de réunion"
+        [title]="room.name"
+        [subtitle]="'Zone ' + room.zoneName + ' · ' + room.capacity + ' personnes'"
+        [halves]="room.halves"
+        [viewerHalves]="resourceViewer()"
+        [busy]="bookingBusy()"
+        (bookRequested)="bookSelectedResource($event)"
         (closeRequested)="clearSelection()"
       />
     </aside>

@@ -276,6 +276,9 @@ function buildFloors() {
 async function main(): Promise<void> {
   console.info('Remise à zéro des données de démo…');
   await prisma.auditLog.deleteMany();
+  await prisma.roomSlot.deleteMany();
+  await prisma.roomBooking.deleteMany();
+  await prisma.room.deleteMany();
   await prisma.vehicleSlot.deleteMany();
   await prisma.vehicleBooking.deleteMany();
   await prisma.vehicle.deleteMany();
@@ -459,6 +462,22 @@ async function main(): Promise<void> {
   console.info(
     `Réservations : ${bookingCount} actives, ${cancelledCount} annulées (historique).`,
   );
+  // Salles de réunion réservables : une salle par zone « salle » de chaque étage.
+  const floorsWithZones = await prisma.floor.findMany({ select: { id: true, zones: true } });
+  for (const floor of floorsWithZones) {
+    const zones = (floor.zones as { name: string; kind: string }[]) ?? [];
+    for (const zone of zones.filter((z) => z.kind === 'room')) {
+      await prisma.room.create({
+        data: {
+          name: zone.name,
+          zoneName: zone.name,
+          floorId: floor.id,
+          capacity: zone.name.includes('Horizon') ? 8 : 6,
+        },
+      });
+    }
+  }
+
   // Véhicules de fonction : deux pour commencer, l'admin peut en ajouter.
   const vehicles = [];
   for (const v of [
