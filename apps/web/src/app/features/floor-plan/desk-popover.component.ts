@@ -1,6 +1,13 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import type { AfterViewInit, ElementRef } from '@angular/core';
-import { ChangeDetectionStrategy, Component, input, output, viewChildren } from '@angular/core';
+import type { AfterViewInit } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  input,
+  output,
+} from '@angular/core';
 import type { HalfInput, HalfKey } from '../../core/models';
 import { ButtonComponent } from '../../shared/ui/button.component';
 import { BadgeComponent } from '../../shared/ui/badge.component';
@@ -18,29 +25,31 @@ import type { DeskView } from './desk-view';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DeskPopoverComponent implements AfterViewInit {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   readonly desk = input.required<DeskView>();
   readonly dateLabel = input.required<string>();
   readonly busy = input(false);
+  /** Demi-journées déjà réservées par le visiteur ce jour-là, sur n'importe quel poste. */
+  readonly viewerHalves = input<Record<HalfKey, boolean>>({ AM: false, PM: false });
 
   readonly bookRequested = output<HalfInput>();
   readonly closeRequested = output<void>();
-
-  private readonly actions = viewChildren<ElementRef<HTMLButtonElement>>('action');
 
   protected readonly stateMeta = (state: DeskView['state']) => DESK_STATE_META[state];
 
   protected canBook(half: HalfInput): boolean {
     const desk = this.desk().availability;
     if (desk.reservedForOtherTeam || !desk.isActive) return false;
-    if (half === 'FULL') return halfIsFree(desk, 'AM') && halfIsFree(desk, 'PM');
-    return halfIsFree(desk, half);
+    const halves: HalfKey[] = half === 'FULL' ? ['AM', 'PM'] : [half];
+    return halves.every((h) => halfIsFree(desk, h) && !this.viewerHalves()[h]);
   }
 
   protected halfText(half: HalfKey): string {
     const status = this.desk().availability.halves[half];
     switch (status.status) {
       case 'FREE':
-        return 'Libre';
+        return this.viewerHalves()[half] ? 'Vous avez déjà un poste' : 'Libre';
       case 'MINE':
         return 'Votre réservation';
       case 'BOOKED':
@@ -49,8 +58,11 @@ export class DeskPopoverComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Focus initial sur la première action possible, sinon sur le bouton Fermer.
-    const first = this.actions().find((el) => !el.nativeElement.disabled);
-    (first ?? this.actions().at(-1))?.nativeElement.focus();
+    // Focus initial sur la première action possible, sinon sur le dernier bouton (Fermer).
+    const buttons = [
+      ...this.host.nativeElement.querySelectorAll<HTMLButtonElement>('button[data-action]'),
+    ];
+    const first = buttons.find((b) => !b.disabled);
+    (first ?? buttons.at(-1))?.focus();
   }
 }

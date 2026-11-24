@@ -14,3 +14,8 @@ apps/api/src/generated/
 # Skills générés par le CLI Prisma (non versionnés)
 .agents/
 apps/api/.agents/
+
+# Artefacts de build et de tests
+*.tsbuildinfo
+test-results/
+playwright-report/

@@ -1,18 +1,19 @@
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import type { AfterViewInit, ElementRef } from '@angular/core';
+import type { AfterViewInit } from '@angular/core';
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostListener,
+  inject,
   input,
   output,
-  viewChild,
 } from '@angular/core';
 import { ButtonComponent } from './button.component';
 
 /**
- * Boîte de confirmation accessible : rôle dialog, focus piégé (CDK A11y),
- * Échap pour annuler, focus initial sur l'action la moins destructive.
+ * Boîte de confirmation accessible : rôle alertdialog, focus piégé (CDK A11y),
+ * Échap pour annuler, focus initial sur l'action la moins destructive (data-autofocus).
  */
 @Component({
   selector: 'app-confirm-dialog',
@@ -23,18 +24,18 @@ import { ButtonComponent } from './button.component';
         cdkTrapFocus
         role="alertdialog"
         aria-modal="true"
-        [attr.aria-labelledby]="'confirm-title'"
-        [attr.aria-describedby]="'confirm-desc'"
+        aria-labelledby="confirm-title"
+        aria-describedby="confirm-desc"
         class="w-full max-w-md rounded-xl bg-surface p-6 shadow-pop"
       >
         <h2 id="confirm-title" class="text-lg font-semibold text-ink">{{ title() }}</h2>
         <p id="confirm-desc" class="mt-2 text-sm text-ink-muted">{{ message() }}</p>
         <div class="mt-6 flex justify-end gap-2">
           <button
-            #cancelButton
             ui-button
             variant="secondary"
             type="button"
+            data-autofocus
             (click)="cancelled.emit()"
           >
             Annuler
@@ -49,6 +50,8 @@ import { ButtonComponent } from './button.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConfirmDialogComponent implements AfterViewInit {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   readonly title = input.required<string>();
   readonly message = input.required<string>();
   readonly confirmLabel = input('Confirmer');
@@ -56,10 +59,8 @@ export class ConfirmDialogComponent implements AfterViewInit {
   readonly confirmed = output<void>();
   readonly cancelled = output<void>();
 
-  private readonly cancelButton = viewChild.required<ElementRef<HTMLButtonElement>>('cancelButton');
-
   ngAfterViewInit(): void {
-    this.cancelButton().nativeElement.focus();
+    this.host.nativeElement.querySelector<HTMLButtonElement>('[data-autofocus]')?.focus();
   }
 
   @HostListener('document:keydown.escape')

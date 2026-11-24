@@ -45,16 +45,16 @@
   }
 
   <div class="mt-4 flex flex-col gap-2">
-    <button #action ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('AM')" (click)="bookRequested.emit('AM')">
+    <button data-action ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('AM')" (click)="bookRequested.emit('AM')">
       Réserver le matin
     </button>
-    <button #action ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('PM')" (click)="bookRequested.emit('PM')">
+    <button data-action ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('PM')" (click)="bookRequested.emit('PM')">
       Réserver l’après-midi
     </button>
-    <button #action ui-button type="button" class="w-full" [disabled]="busy() || !canBook('FULL')" (click)="bookRequested.emit('FULL')">
+    <button data-action ui-button type="button" class="w-full" [disabled]="busy() || !canBook('FULL')" (click)="bookRequested.emit('FULL')">
       Réserver la journée
     </button>
-    <button #action ui-button variant="ghost" type="button" class="w-full" (click)="closeRequested.emit()">
+    <button data-action ui-button variant="ghost" type="button" class="w-full" (click)="closeRequested.emit()">
       Fermer
     </button>
   </div>

@@ -124,8 +124,19 @@ export class FloorsController {
         : { status: 'BOOKED', holder };
     };
 
+    // Demi-journées déjà prises par le visiteur ce jour-là, tous étages confondus.
+    const mine = await this.prisma.bookingSlot.findMany({
+      where: { userId: viewer.id, date },
+      select: { half: true },
+    });
+    const viewerHalves = {
+      AM: mine.some((s) => s.half === 'AM'),
+      PM: mine.some((s) => s.half === 'PM'),
+    };
+
     return {
       date: query.date,
+      viewer: viewerHalves,
       desks: floor.desks.map((desk) => ({
         id: desk.id,
         label: desk.label,

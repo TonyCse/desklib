@@ -34,7 +34,7 @@ Mot de passe commun : `demo1234`
 - Mes réservations : à venir et passées, annulation avec confirmation.
 - Planning d'équipe par semaine, taux de présence pour le manager, réservation pour un membre de son équipe.
 
-Pas encore disponible : administration (postes, règles, utilisateurs, stats, journal d'audit).
+Administration (rôle ADMIN) : postes, règles de réservation, utilisateurs et rôles, statistiques d'occupation, journal d'audit paginé.
 
 ## Sécurité
 
@@ -64,4 +64,24 @@ packages/shared Types et enums communs
 
 ```bash
 npm test        # règles métier de l'API, tests du front
+npm run e2e     # parcours complet dans un vrai navigateur (Playwright)
+npm run ci      # enchaîne lint, tests, build et e2e comme la CI
 ```
+
+La CI (GitHub Actions, `.github/workflows/ci.yml`) lance les mêmes étapes sur une base PostgreSQL neuve, avec migrations et seed.
+
+## Aperçu
+
+![Connexion](docs/screenshots/connexion.png)
+
+![Plan d’étage](docs/screenshots/plan-etage.png)
+
+![Popover de réservation](docs/screenshots/popover-reservation.png)
+
+![Mes réservations](docs/screenshots/mes-reservations.png)
+
+![Planning d’équipe](docs/screenshots/planning-equipe.png)
+
+![Statistiques d’administration](docs/screenshots/admin-statistiques.png)
+
+Régénérer les captures : `npm run screenshots`.

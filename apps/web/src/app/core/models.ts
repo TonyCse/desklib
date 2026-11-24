@@ -41,6 +41,8 @@ export interface DeskAvailability {
 
 export interface Availability {
   date: string;
+  /** Demi-journées déjà réservées par le visiteur ce jour-là (tous postes confondus). */
+  viewer: Record<HalfKey, boolean>;
   desks: DeskAvailability[];
 }
 

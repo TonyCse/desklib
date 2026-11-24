@@ -185,6 +185,8 @@ export class FloorPlanPage {
     ),
     tap(() => {
       this.loading.set(true);
+      // Pas d'état périmé : on repart du squelette tant que la nouvelle date n'est pas chargée.
+      this.availability.set(null);
       this.loadError.set(false);
     }),
     switchMap((s) =>
@@ -323,6 +325,10 @@ export class FloorPlanPage {
     );
     this.popoverRef.setInput('desk', desk);
     this.popoverRef.setInput('dateLabel', this.dateLabel());
+    this.popoverRef.setInput(
+      'viewerHalves',
+      this.availability()?.viewer ?? { AM: false, PM: false },
+    );
     this.popoverRef.instance.bookRequested.subscribe((half) => this.book(desk, half));
     this.popoverRef.instance.closeRequested.subscribe(() => this.closePopover());
   }

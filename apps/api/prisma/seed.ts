@@ -6,7 +6,10 @@
  *
  * Usage : npm run db:seed (depuis la racine) — ne jamais lancer en production.
  */
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+const rootEnv = fileURLToPath(new URL('../../../.env', import.meta.url));
+if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 import * as argon2 from 'argon2';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
@@ -21,7 +24,6 @@ import {
   parseIsoDate,
 } from '../src/bookings/domain/booking-rules.js';
 
-process.loadEnvFile(fileURLToPath(new URL('../../../.env', import.meta.url)));
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env['DATABASE_URL'] }),
@@ -31,6 +33,7 @@ const DEMO_PASSWORD = 'demo1234';
 const HISTORY_DAYS = 28;
 const FORWARD_DAYS = 14;
 const WEEKLY_QUOTA = 3; // identique à Settings.weeklyQuota
+const DEMO_EMPLOYEE_EMAIL = 'salarie@meridia.demo';
 
 // Générateur déterministe (mulberry32) : mêmes données à chaque seed.
 function createRng(seed: number): () => number {
@@ -354,6 +357,10 @@ async function main(): Promise<void> {
   const start = addDays(today, -HISTORY_DAYS);
   const end = addDays(today, FORWARD_DAYS);
 
+  // Premier jour ouvré après aujourd'hui (réservation à venir du compte démo salarié).
+  let nextWorkday = addDays(today, 1);
+  while (isWeekend(nextWorkday)) nextWorkday = addDays(nextWorkday, 1);
+
   // Clé d'occupation : "poste|jour|demi-journée". Un poste ne peut servir qu'une fois par demi-journée.
   const occupied = new Set<string>();
   // Jours déjà pris par salarié et par semaine ISO (lundi de la semaine comme clé).
@@ -372,10 +379,16 @@ async function main(): Promise<void> {
     const date = parseIsoDate(day);
     if (!date) continue;
     const isPast = day < today;
+    const isNextWorkday = day === nextWorkday;
 
     for (const user of shuffle(users)) {
+      // Compte démo salarié : historique seul, plus une réservation à venir le prochain jour ouvré.
+      // Ainsi son quota reste disponible pour la démonstration et les tests de bout en bout.
+      const isDemoEmployee = user.email === DEMO_EMPLOYEE_EMAIL;
+      if (isDemoEmployee && !isPast && !isNextWorkday) continue;
+
       const attendance = user.role === 'EMPLOYEE' ? 0.55 : 0.6;
-      if (rng() > attendance) continue;
+      if (!isDemoEmployee && rng() > attendance) continue;
 
       const weekKey = `${user.id}:${mondayOf(day)}`;
       const days = weekDays.get(weekKey) ?? new Set<string>();
@@ -384,6 +397,7 @@ async function main(): Promise<void> {
       const roll = rng();
       const halves: Half[] =
         roll < 0.6 ? ['AM', 'PM'] : roll < 0.8 ? ['AM'] : ['PM'];
+      if (isDemoEmployee) halves.splice(0, halves.length, 'AM');
 
       const candidates = shuffle(
         createdDesks.filter((desk) => {

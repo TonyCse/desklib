@@ -16,7 +16,8 @@
     "migrate": "prisma migrate dev",
     "seed": "tsx prisma/seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

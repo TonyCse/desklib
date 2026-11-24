@@ -19,6 +19,9 @@ Outil interne de réservation de postes (flex office) pour l'entreprise fictive 
 | Dev front + API | `npm run dev` (proxy Angular `/api` → `localhost:3000`) |
 | Tests | `npm test` |
 | Lint | `npm run lint` |
+| Parcours e2e | `npm run e2e` (Playwright, lance le dev) |
+| Captures README | `npm run screenshots` |
+| Tout comme la CI | `npm run ci` |
 | Build | `npm run build` |
 
 Node 22.22.3+ requis (Angular 22). Le `.env` est unique, à la racine (copie de `.env.example`).
@@ -48,4 +51,7 @@ Node 22.22.3+ requis (Angular 22). Le `.env` est unique, à la racine (copie de 
 
 Fait : connexion, layout par rôle, plan d'étage (SVG, popover CDK, vue liste), réservation avec règles, Mes réservations (annulation avec confirmation), planning d'équipe, réservation manager pour un membre, seed Meridia.
 
-Reporté : écrans admin complets (page placeholder), stats, journal d'audit, accessibilité poussée, Playwright, CI, déploiement, mode sombre.
+Administration : postes, règles, utilisateurs, statistiques, journal d'audit.
+Qualité : test e2e Playwright du parcours réservation, CI GitHub Actions, captures README.
+
+Reporté : déploiement (à décider ensemble), mode sombre, accessibilité poussée au-delà du MVP.

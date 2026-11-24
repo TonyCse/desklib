@@ -1,13 +1,13 @@
-import { fileURLToPath } from 'node:url';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
+import { loadRootEnv } from './env.js';
 
 async function bootstrap(): Promise<void> {
   // Le .env est unique, à la racine du monorepo. Chargé avant toute instanciation des services.
-  process.loadEnvFile(fileURLToPath(new URL('../../../.env', import.meta.url)));
+  loadRootEnv();
 
   const app = await NestFactory.create(AppModule);
 

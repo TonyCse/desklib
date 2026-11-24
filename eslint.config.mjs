@@ -33,6 +33,12 @@ export default tseslint.config(
     },
   },
   {
+    // Tests e2e : hors projet TypeScript du monorepo, donc sans règles typées.
+    files: ['e2e/**/*.ts'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: { parserOptions: { projectService: false, project: null } },
+  },
+  {
     files: ['**/*.js', '**/*.mjs'],
     languageOptions: { globals: globals.node },
   },
