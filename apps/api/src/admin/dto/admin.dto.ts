@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsOptional,
@@ -125,6 +126,34 @@ export class UpdateSettingsDto {
   @Min(1)
   @Max(7)
   weeklyQuota?: number;
+}
+
+export class CreateUserDto {
+  @IsEmail({}, { message: 'email invalide' })
+  @MaxLength(120)
+  email!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  firstName!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(60)
+  lastName!: string;
+
+  @IsIn([...ROLES], { message: 'role invalide' })
+  role!: Role;
+
+  @IsOptional()
+  @IsString()
+  teamId?: string | null;
+
+  @IsString()
+  @MinLength(8, { message: 'mot de passe : 8 caractères minimum' })
+  @MaxLength(128)
+  password!: string;
 }
 
 export class UpdateUserDto {

@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -17,6 +18,7 @@ import {
 import {
   AuditQueryDto,
   CreateDeskDto,
+  CreateUserDto,
   CreateVehicleDto,
   CreateRoomDto,
   UpdateRoomDto,
@@ -164,6 +166,54 @@ export class AdminService {
       orderBy: { name: 'asc' },
       select: { id: true, name: true, color: true },
     });
+  }
+
+  /** Création d'un compte : mot de passe initial haché (argon2), trace d'audit dans la même transaction. */
+  async createUser(actor: AuthUser, dto: CreateUserDto) {
+    if (dto.teamId) await this.assertFloorAndTeam(null, dto.teamId);
+    const passwordHash = await argon2.hash(dto.password);
+    const email = dto.email.toLowerCase();
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            email,
+            firstName: dto.firstName.trim(),
+            lastName: dto.lastName.trim(),
+            role: dto.role,
+            teamId: dto.teamId ?? null,
+            passwordHash,
+          },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            teamId: true,
+          },
+        });
+        await this.audit.record(
+          {
+            actorId: actor.id,
+            action: 'USER_CREATED',
+            entityType: 'User',
+            entityId: user.id,
+            payload: { email, role: dto.role, teamId: dto.teamId ?? null },
+          },
+          tx,
+        );
+        return user;
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Un utilisateur existe déjà avec cet email');
+      }
+      throw error;
+    }
   }
 
   async updateUser(actor: AuthUser, id: string, dto: UpdateUserDto) {

@@ -16,6 +16,7 @@ import { AdminService } from './admin.service.js';
 import {
   AuditQueryDto,
   CreateDeskDto,
+  CreateUserDto,
   CreateVehicleDto,
   CreateRoomDto,
   UpdateRoomDto,
@@ -110,6 +111,11 @@ export class AdminController {
   @Get('teams')
   listTeams() {
     return this.admin.listTeams();
+  }
+
+  @Post('users')
+  createUser(@CurrentUser() actor: AuthUser, @Body() dto: CreateUserDto) {
+    return this.admin.createUser(actor, dto);
   }
 
   @Patch('users/:id')
