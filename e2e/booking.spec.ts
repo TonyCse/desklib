@@ -15,18 +15,17 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
   // Vue liste : accessible et stable quelle que soit la taille d'écran.
   await page.getByRole('button', { name: 'Liste', exact: true }).click();
 
-  // Parcourt les dates à venir jusqu'à réussir une réservation de journée.
-  const dateSelect = page.locator('select').first();
-  // Attend les réglages (dates proposées) avant de lire les options.
-  await expect(dateSelect.locator('option').first()).toBeAttached();
-  const optionCount = await dateSelect.locator('option').count();
+  // Les dates sont proposées en boutons ; on parcourt celles à venir jusqu'à une réservation réussie.
+  const datePills = page.getByRole('group', { name: 'Dates' }).getByRole('button');
+  await expect(datePills.first()).toBeVisible();
+  const optionCount = await datePills.count();
   let bookedLabel: string | null = null;
 
   for (let i = 1; i < Math.min(optionCount, 9) && bookedLabel === null; i++) {
     // Attend le rechargement des disponibilités avant de cliquer (évite un état périmé).
     await Promise.all([
       page.waitForResponse((r) => r.url().includes('/availability') && r.ok()),
-      dateSelect.selectOption({ index: i }),
+      datePills.nth(i).click(),
     ]);
 
     const freeDesk = page
@@ -35,10 +34,11 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
     if (!(await freeDesk.isVisible({ timeout: 1000 }).catch(() => false))) continue;
 
     await freeDesk.click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
+    // Le détail du poste s'affiche dans un panneau (région nommée d'après le poste).
+    const panel = page.getByRole('region', { name: /Poste/ });
+    await expect(panel).toBeVisible();
 
-    const fullDay = dialog.getByRole('button', { name: 'Réserver la journée' });
+    const fullDay = panel.getByRole('button', { name: 'Réserver la journée' });
     if (!(await fullDay.isEnabled())) {
       await page.keyboard.press('Escape');
       continue;

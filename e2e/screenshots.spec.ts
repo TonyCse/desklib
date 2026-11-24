@@ -30,6 +30,18 @@ test('captures des écrans principaux', async ({ page }) => {
   // Attend la fin du chargement des modèles (la scène passe à « ready »).
   await expect(page.locator('[data-status="ready"]')).toBeVisible({ timeout: 90_000 });
   await page.screenshot({ path: path.join(OUT, 'plan-vue-3-4.png') });
+  await page.getByRole('button', { name: 'Vue du dessus', exact: true }).click();
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: path.join(OUT, 'plan-vue-dessus.png') });
+
+  // Changement d'étage : capture pendant la transition animée.
+  await page.getByRole('button', { name: 'Vue 3/4', exact: true }).click();
+  await page.waitForTimeout(800);
+  await page.locator('#floor-select').selectOption({ index: 1 });
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: path.join(OUT, 'plan-transition-etage.png') });
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(OUT, 'plan-etage-2.png') });
   await page.getByRole('button', { name: 'Plan', exact: true }).click();
 
   await page.getByRole('button', { name: 'Liste', exact: true }).click();
@@ -37,7 +49,7 @@ test('captures des écrans principaux', async ({ page }) => {
     .getByRole('button', { name: /^Poste .+, libre toute la journée$/ })
     .first()
     .click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('region', { name: /Poste/ })).toBeVisible();
   await page.screenshot({ path: path.join(OUT, 'popover-reservation.png') });
   await page.keyboard.press('Escape');
 

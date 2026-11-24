@@ -7,3 +7,14 @@ téléchargés via le site Poly Pizza (https://poly.pizza/bundle/Furniture-Kit-N
 Liste des fichiers : desk, desk-corner, chair-desk, chair, chair-modern, monitor, keyboard, laptop, plant, plant-small,
 table, table-round, table-coffee, kitchen-cabinet, fridge, kitchen-bar, bookcase, sofa, coat-rack, trashcan, lamp-floor,
 rug, cabinet-tv, window, stool.
+
+## Véhicules (dossier `parking/`)
+
+Kenney, Car Kit (CC0 1.0), récupéré depuis https://github.com/basedmaxs/kenney-assets (dossier `car-kit`).
+Fichiers : sedan, suv, hatchback-sports, van, taxi, sedan-sports, avec leur texture `Textures/colormap.png`.
+Licence d'origine incluse : `parking/LICENSE.txt`.
+
+## Végétation (dossier `nature/`)
+
+Kenney, Nature Kit (CC0 1.0), récupéré depuis https://github.com/basedmaxs/kenney-assets (dossier `nature-kit`).
+Fichiers : tree-default, tree-oak, tree-fat, tree-pine, tree-simple, bush-large. Licence incluse : `nature/LICENSE.txt`.

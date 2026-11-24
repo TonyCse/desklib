@@ -1,20 +1,18 @@
-import type { OverlayRef } from '@angular/cdk/overlay';
-import { Overlay } from '@angular/cdk/overlay';
-import { ComponentPortal } from '@angular/cdk/portal';
 import { HttpClient } from '@angular/common/http';
-import type { ComponentRef } from '@angular/core';
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ViewContainerRef,
+  HostListener,
   computed,
   inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { EMPTY, catchError, filter, switchMap, tap } from 'rxjs';
-import { formatDayFr, todayIso, workdaysFrom } from '../../core/dates';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { EMPTY, catchError, combineLatest, filter, forkJoin, switchMap, tap } from 'rxjs';
+import { AuthService } from '../../core/auth/auth.service';
+import { formatDayFr, formatShortDayFr, todayIso, workdaysFrom } from '../../core/dates';
 import type {
   Availability,
   FloorDetail,
@@ -22,6 +20,8 @@ import type {
   HalfInput,
   Settings,
 } from '../../core/models';
+import { LayoutService } from '../../core/layout/layout.service';
+import { navItemsFor } from '../../core/layout/nav';
 import { ToastService } from '../../core/notifications/toast.service';
 import { EmptyStateComponent } from '../../shared/ui/feedback.components';
 import { ButtonComponent } from '../../shared/ui/button.component';
@@ -39,7 +39,7 @@ type ViewMode = 'plan' | '3d' | 'list';
 
 const MOBILE_QUERY = '(max-width: 767px)';
 
-/** Couleurs de remplissage par état. L'état est aussi porté par le symbole et le motif. */
+/** Couleurs de remplissage par état pour la vue plan. L'état est aussi porté par le symbole et le motif. */
 const DESK_CLASS: Record<DeskState, string> = {
   FREE: 'fill-surface stroke-ink-muted',
   PARTIAL: 'fill-surface stroke-accent',
@@ -63,20 +63,35 @@ const DESK_TONE: Record<DeskState, BadgeTone> = {
   UNAVAILABLE: 'danger',
 };
 
+/**
+ * Plan d'étage en mode immersif : la scène occupe tout l'écran, et les éléments d'interface
+ * (navigation, chiffres, détail du poste, dates, légende) flottent par-dessus.
+ */
 @Component({
   selector: 'app-floor-plan-page',
-  imports: [EmptyStateComponent, ButtonComponent, BadgeComponent, FloorScene3dComponent],
+  imports: [
+    EmptyStateComponent,
+    ButtonComponent,
+    BadgeComponent,
+    FloorScene3dComponent,
+    DeskPopoverComponent,
+    RouterLink,
+    RouterLinkActive,
+  ],
   templateUrl: './floor-plan.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FloorPlanPage {
   private readonly http = inject(HttpClient);
   private readonly toast = inject(ToastService);
-  private readonly overlay = inject(Overlay);
-  private readonly viewContainer = inject(ViewContainerRef);
+  private readonly auth = inject(AuthService);
+  private readonly layout = inject(LayoutService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly DESK_STATE_META = DESK_STATE_META;
+  protected readonly user = this.auth.user;
+  protected readonly nav = computed(() => navItemsFor(this.auth.role()));
 
   // Réglages et étages (une seule fois).
   protected readonly settings = toSignal(this.http.get<Settings>('/api/settings'));
@@ -98,8 +113,9 @@ export class FloorPlanPage {
   );
   protected readonly date = computed(() => this.selectedDate() ?? this.dateOptions()[0] ?? null);
 
+  // Vue 3D par défaut sur ordinateur ; liste sur mobile.
   protected readonly viewMode = signal<ViewMode>(
-    typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches ? 'list' : 'plan',
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches ? 'list' : '3d',
   );
 
   // Chargement du plan et des disponibilités.
@@ -114,12 +130,9 @@ export class FloorPlanPage {
   protected readonly equipmentFilter = signal('');
   protected readonly zoneFilter = signal('');
 
-  // Popover.
-  private overlayRef: OverlayRef | null = null;
-  private popoverRef: ComponentRef<DeskPopoverComponent> | null = null;
-  private popoverOrigin: HTMLElement | null = null;
+  // Poste sélectionné (panneau de détail) et réservation en cours.
+  protected readonly selectedDeskId = signal<string | null>(null);
   protected readonly bookingBusy = signal(false);
-  protected readonly activeDeskId = signal<string | null>(null);
 
   protected readonly desks = computed<DeskView[]>(() => {
     const detail = this.detail();
@@ -139,6 +152,12 @@ export class FloorPlanPage {
     });
   });
 
+  protected readonly deskById = computed(() => new Map(this.desks().map((d) => [d.id, d])));
+  protected readonly selectedDesk = computed(() => {
+    const id = this.selectedDeskId();
+    return id ? (this.deskById().get(id) ?? null) : null;
+  });
+
   /** Postes tels qu'attendus par la scène 3D (géométrie et état). */
   protected readonly sceneDesks = computed<SceneDesk[]>(() =>
     this.desks().map((d) => ({
@@ -153,12 +172,15 @@ export class FloorPlanPage {
     })),
   );
 
-  protected onScenePick(event: { deskId: string; anchor: HTMLElement }): void {
-    const desk = this.deskById().get(event.deskId);
-    if (desk) this.openPopover(desk, event.anchor);
-  }
-
-  protected readonly deskById = computed(() => new Map(this.desks().map((d) => [d.id, d])));
+  /** Chiffres affichés en cartes flottantes. */
+  protected readonly kpis = computed(() => {
+    const desks = this.desks();
+    const active = desks.filter((d) => d.state !== 'UNAVAILABLE');
+    const free = active.filter((d) => d.state === 'FREE' || d.state === 'PARTIAL').length;
+    const occupied = active.length - free;
+    const occupancy = active.length ? Math.round((occupied / active.length) * 100) : 0;
+    return { total: desks.length, active: active.length, free, occupancy };
+  });
 
   protected readonly zoneOptions = computed(() =>
     [...new Set(this.desks().map((d) => d.zone))].sort(),
@@ -183,57 +205,60 @@ export class FloorPlanPage {
     const date = this.date();
     return date ? formatDayFr(date) : '';
   });
-  protected readonly freeCount = computed(
-    () => this.desks().filter((d) => d.state === 'FREE' || d.state === 'PARTIAL').length,
+  protected readonly viewerHalves = computed(
+    () => this.availability()?.viewer ?? { AM: false, PM: false },
   );
 
-  private readonly reloadDetail$ = toObservable(this.floorId).pipe(
-    filter((id): id is string => id !== null),
-    tap(() => this.detail.set(null)),
-    switchMap((id) =>
-      this.http.get<FloorDetail>(`/api/floors/${id}`).pipe(catchError(() => EMPTY)),
-    ),
-    takeUntilDestroyed(),
-  );
-
-  private readonly reloadAvailability$ = toObservable(
-    computed(() => ({
-      floorId: this.floorId(),
-      date: this.date(),
-      version: this.refreshVersion(),
-    })),
-  ).pipe(
+  /**
+   * Étage et disponibilités chargés ensemble : la scène reçoit toujours des données cohérentes.
+   * Les anciennes données restent affichées pendant le chargement (pas de squelette en plein milieu
+   * d'une transition entre étages).
+   */
+  private readonly loadFloor$ = combineLatest({
+    floorId: toObservable(this.floorId),
+    date: toObservable(this.date),
+    version: toObservable(this.refreshVersion),
+  }).pipe(
     filter(
       (s): s is { floorId: string; date: string; version: number } =>
         s.floorId !== null && s.date !== null,
     ),
     tap(() => {
       this.loading.set(true);
-      // Pas d'état périmé : on repart du squelette tant que la nouvelle date n'est pas chargée.
-      this.availability.set(null);
       this.loadError.set(false);
     }),
     switchMap((s) =>
-      this.http
-        .get<Availability>(`/api/floors/${s.floorId}/availability`, { params: { date: s.date } })
-        .pipe(
-          catchError(() => {
-            this.loadError.set(true);
-            this.loading.set(false);
-            return EMPTY;
-          }),
-        ),
+      forkJoin({
+        detail: this.http.get<FloorDetail>(`/api/floors/${s.floorId}`),
+        availability: this.http.get<Availability>(`/api/floors/${s.floorId}/availability`, {
+          params: { date: s.date },
+        }),
+      }).pipe(
+        catchError(() => {
+          this.loadError.set(true);
+          this.loading.set(false);
+          return EMPTY;
+        }),
+      ),
     ),
     takeUntilDestroyed(),
   );
 
   constructor() {
-    this.reloadDetail$.subscribe((detail) => this.detail.set(detail));
-    this.reloadAvailability$.subscribe((availability) => {
+    // Mode immersif : la coque masque sa sidebar et sa barre de titre tant que cette page est affichée.
+    this.layout.setImmersive(true);
+    this.destroyRef.onDestroy(() => this.layout.setImmersive(false));
+
+    this.loadFloor$.subscribe(({ detail, availability }) => {
+      this.detail.set(detail);
       this.availability.set(availability);
       this.loading.set(false);
     });
-    this.destroyRef.onDestroy(() => this.closePopover(false));
+  }
+
+  @HostListener('document:keydown.escape')
+  protected onEscape(): void {
+    this.clearSelection();
   }
 
   protected readonly stateKeys: DeskState[] = [
@@ -271,6 +296,10 @@ export class FloorPlanPage {
     return formatDayFr(iso);
   }
 
+  protected shortDayLabel(iso: string): string {
+    return formatShortDayFr(iso);
+  }
+
   protected resetFilters(): void {
     this.onlyFree.set(false);
     this.equipmentFilter.set('');
@@ -278,12 +307,12 @@ export class FloorPlanPage {
   }
 
   protected selectFloor(id: string): void {
-    this.closePopover(false);
+    this.clearSelection();
     this.selectedFloorId.set(id);
   }
 
   protected selectDate(iso: string): void {
-    this.closePopover(false);
+    this.clearSelection();
     this.selectedDate.set(iso);
   }
 
@@ -307,72 +336,41 @@ export class FloorPlanPage {
     this.refreshVersion.update((v) => v + 1);
   }
 
-  protected openFromPlan(desk: DeskView, event: Event): void {
-    this.openPopover(desk, event.currentTarget as HTMLElement);
+  /** Sélection d'un poste (clic, Entrée, ou clic dans la scène 3D) : ouvre le panneau de détail. */
+  protected select(desk: DeskView): void {
+    this.selectedDeskId.set(desk.id);
+  }
+
+  protected clearSelection(): void {
+    this.selectedDeskId.set(null);
+  }
+
+  protected openFromPlan(desk: DeskView): void {
+    this.select(desk);
   }
 
   protected onDeskKeydown(desk: DeskView, event: KeyboardEvent): void {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      this.openPopover(desk, event.currentTarget as HTMLElement);
+      this.select(desk);
     }
   }
 
-  private openPopover(desk: DeskView, origin: HTMLElement): void {
-    this.closePopover(false);
-    this.popoverOrigin = origin;
-    this.activeDeskId.set(desk.id);
-
-    const positionStrategy = this.overlay
-      .position()
-      .flexibleConnectedTo(origin)
-      .withPositions([
-        { originX: 'center', originY: 'bottom', overlayX: 'center', overlayY: 'top', offsetY: 8 },
-        { originX: 'center', originY: 'top', overlayX: 'center', overlayY: 'bottom', offsetY: -8 },
-      ])
-      .withPush(true)
-      .withViewportMargin(12);
-
-    this.overlayRef = this.overlay.create({
-      positionStrategy,
-      scrollStrategy: this.overlay.scrollStrategies.reposition(),
-      hasBackdrop: true,
-      backdropClass: 'cdk-overlay-transparent-backdrop',
-    });
-    this.overlayRef.backdropClick().subscribe(() => this.closePopover());
-    this.overlayRef.keydownEvents().subscribe((event) => {
-      if (event.key === 'Escape') this.closePopover();
-    });
-
-    this.popoverRef = this.overlayRef.attach(
-      new ComponentPortal(DeskPopoverComponent, this.viewContainer),
-    );
-    this.popoverRef.setInput('desk', desk);
-    this.popoverRef.setInput('dateLabel', this.dateLabel());
-    this.popoverRef.setInput(
-      'viewerHalves',
-      this.availability()?.viewer ?? { AM: false, PM: false },
-    );
-    // Rendu immédiat : les boutons reflètent les créneaux déjà pris avant tout clic.
-    this.popoverRef.changeDetectorRef.detectChanges();
-    this.popoverRef.instance.bookRequested.subscribe((half) => this.book(desk, half));
-    this.popoverRef.instance.closeRequested.subscribe(() => this.closePopover());
+  protected onScenePick(event: { deskId: string }): void {
+    const desk = this.deskById().get(event.deskId);
+    if (desk) this.select(desk);
   }
 
-  private closePopover(restoreFocus = true): void {
-    this.overlayRef?.dispose();
-    this.overlayRef = null;
-    this.popoverRef = null;
-    this.activeDeskId.set(null);
-    if (restoreFocus) this.popoverOrigin?.focus();
-    this.popoverOrigin = null;
+  protected logout(): void {
+    this.auth.logout().subscribe(() => {
+      void this.router.navigate(['/connexion']);
+    });
   }
 
-  private book(desk: DeskView, half: HalfInput): void {
+  protected book(desk: DeskView, half: HalfInput): void {
     const date = this.date();
     if (!date) return;
     this.bookingBusy.set(true);
-    this.popoverRef?.setInput('busy', true);
 
     this.http
       .post('/api/bookings', { deskId: desk.id, date, half })
@@ -382,13 +380,11 @@ export class FloorPlanPage {
           this.bookingBusy.set(false);
           const what = half === 'FULL' ? 'la journée' : half === 'AM' ? 'le matin' : 'l’après-midi';
           this.toast.success(`Poste ${desk.label} réservé ${what}, ${formatDayFr(date)}.`);
-          this.closePopover();
           this.refreshVersion.update((v) => v + 1);
         },
         error: () => {
           // L'intercepteur a déjà affiché le message d'erreur métier.
           this.bookingBusy.set(false);
-          this.popoverRef?.setInput('busy', false);
         },
       });
   }

@@ -1,24 +1,12 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import type { Role } from '@desklib/shared';
 import { AuthService } from '../auth/auth.service';
 import { ToastContainerComponent } from '../../shared/ui/toast-container.component';
+import { LayoutService } from './layout.service';
+import { navItemsFor } from './nav';
 
-interface NavItem {
-  label: string;
-  path: string;
-  roles: readonly Role[];
-}
-
-const NAV: NavItem[] = [
-  { label: 'Plan d’étage', path: '/plan', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
-  { label: 'Véhicules de fonction', path: '/vehicules', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
-  { label: 'Mes réservations', path: '/mes-reservations', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
-  { label: 'Planning d’équipe', path: '/equipe', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
-  { label: 'Administration', path: '/admin', roles: ['ADMIN'] },
-];
-
-/** Coque de l'application : sidebar filtrée selon le rôle, topbar, zone de contenu. */
+/** Coque de l'application : sidebar et barre de titre, masquées en mode immersif. */
 @Component({
   selector: 'app-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastContainerComponent],
@@ -27,14 +15,12 @@ const NAV: NavItem[] = [
 })
 export class ShellComponent {
   protected readonly auth = inject(AuthService);
+  protected readonly layout = inject(LayoutService);
   private readonly router = inject(Router);
 
   protected readonly user = this.auth.user;
-
-  protected navItems(): NavItem[] {
-    const role = this.auth.role();
-    return NAV.filter((item) => role !== null && item.roles.includes(role));
-  }
+  protected readonly immersive = this.layout.immersive;
+  protected readonly navItems = computed(() => navItemsFor(this.auth.role()));
 
   protected roleLabel(role: Role | null): string {
     switch (role) {

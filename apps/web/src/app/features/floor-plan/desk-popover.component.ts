@@ -1,13 +1,4 @@
-import { CdkTrapFocus } from '@angular/cdk/a11y';
-import type { AfterViewInit } from '@angular/core';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  inject,
-  input,
-  output,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import type { HalfInput, HalfKey } from '../../core/models';
 import { ButtonComponent } from '../../shared/ui/button.component';
 import { BadgeComponent } from '../../shared/ui/badge.component';
@@ -15,18 +6,16 @@ import { DESK_STATE_META, halfIsFree } from './desk-status';
 import type { DeskView } from './desk-view';
 
 /**
- * Popover de réservation, ouvert au clic ou à Entrée sur un poste. Le focus est piégé
- * dedans (CDK A11y) et Échap le ferme ; le parent restitue le focus au poste d'origine.
+ * Panneau de détail d'un poste, affiché à côté du plan. Il présente l'état, les équipements
+ * et les actions de réservation. Échap (géré par la page) le ferme.
  */
 @Component({
   selector: 'app-desk-popover',
-  imports: [CdkTrapFocus, ButtonComponent, BadgeComponent],
+  imports: [ButtonComponent, BadgeComponent],
   templateUrl: './desk-popover.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DeskPopoverComponent implements AfterViewInit {
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-
+export class DeskPopoverComponent {
   readonly desk = input.required<DeskView>();
   readonly dateLabel = input.required<string>();
   readonly busy = input(false);
@@ -55,14 +44,5 @@ export class DeskPopoverComponent implements AfterViewInit {
       case 'BOOKED':
         return `Réservé par ${status.holder}`;
     }
-  }
-
-  ngAfterViewInit(): void {
-    // Focus initial sur la première action possible, sinon sur le dernier bouton (Fermer).
-    const buttons = [
-      ...this.host.nativeElement.querySelectorAll<HTMLButtonElement>('button[data-action]'),
-    ];
-    const first = buttons.find((b) => !b.disabled);
-    (first ?? buttons.at(-1))?.focus();
   }
 }

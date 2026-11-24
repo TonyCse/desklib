@@ -1,264 +1,349 @@
-<section class="flex flex-col gap-5">
-  <header class="flex flex-col gap-1">
-    <h1 class="text-2xl font-semibold">Plan d’étage</h1>
-    <p class="text-sm text-ink-muted">
-      Choisissez un poste pour le réserver.
-      @if (!loading() && availability()) {
-        <span>{{ freeCount() }} poste(s) disponible(s) {{ dateLabel() ? 'le ' + dateLabel() : '' }}.</span>
+<section class="absolute inset-0 overflow-hidden bg-[#eaf1fa]" aria-label="Plan d’étage">
+  <!-- Fond : la scène occupe tout l'écran -->
+  <div class="absolute inset-0">
+    @if (loadError()) {
+      <div class="absolute inset-0 flex items-center justify-center p-6">
+        <app-empty-state title="Impossible de charger le plan" description="Vérifiez votre connexion puis réessayez.">
+          <button ui-button variant="secondary" type="button" (click)="retry()">Réessayer</button>
+        </app-empty-state>
+      </div>
+    } @else if (!availability() || !detail()) {
+      <div class="absolute inset-0 flex items-center justify-center" role="status" aria-label="Chargement du plan">
+        <div class="h-2/3 w-2/3 animate-pulse rounded-3xl bg-white/60"></div>
+      </div>
+    } @else if (viewMode() === '3d') {
+      @if (detail(); as plan) {
+        <app-floor-scene-3d class="block h-full w-full" [detail]="plan" [desks]="sceneDesks()" (deskPicked)="onScenePick($event)" />
       }
-    </p>
-  </header>
+    } @else if (viewMode() === 'plan') {
+      @if (detail(); as plan) {
+        <div class="absolute inset-0 flex items-center justify-center overflow-auto px-6 pb-40 pt-28">
+          <svg
+            class="h-auto max-h-full w-full max-w-5xl text-ink-subtle"
+            [attr.viewBox]="'0 0 ' + plan.width + ' ' + plan.height"
+            role="group"
+            [attr.aria-label]="'Plan de ' + plan.name + ', ' + desks().length + ' postes'"
+          >
+            <defs>
+              <pattern id="ilot-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="3" height="6" class="fill-ink-subtle" />
+              </pattern>
+            </defs>
 
-  <!-- Contrôles : date, étage, mode d'affichage -->
-  <div class="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-surface p-4 shadow-card">
-    <label class="flex flex-col gap-1 text-sm font-medium">
-      Date
-      <select
-        #dateSelect
-        class="field min-w-56"
-        [value]="date() ?? ''"
-        (change)="selectDate(dateSelect.value)"
-      >
-        @for (option of dateOptions(); track option) {
-          <option [value]="option">{{ dayLabel(option) }}</option>
-        }
-      </select>
-    </label>
+            @for (zone of plan.zones; track zone.name) {
+              <g aria-hidden="true">
+                <rect
+                  [attr.x]="zone.x"
+                  [attr.y]="zone.y"
+                  [attr.width]="zone.width"
+                  [attr.height]="zone.height"
+                  rx="10"
+                  [class]="zone.kind === 'openspace' ? 'fill-canvas stroke-line' : 'fill-surface stroke-line-strong'"
+                  stroke-width="1.5"
+                />
+                <text [attr.x]="zone.x + 12" [attr.y]="zone.y + 22" font-size="13" class="fill-ink-muted">
+                  {{ zone.name }}
+                </text>
+              </g>
+            }
 
-    <label class="flex flex-col gap-1 text-sm font-medium">
-      Étage
-      <select #floorSelect class="field min-w-40" [value]="floorId() ?? ''" (change)="selectFloor(floorSelect.value)">
-        @for (floor of floors(); track floor.id) {
-          <option [value]="floor.id">{{ floor.name }}</option>
-        }
-      </select>
-    </label>
-
-    <div class="ml-auto flex rounded-lg border border-line-strong p-0.5" role="group" aria-label="Mode d’affichage">
-      <button
-        type="button"
-        class="rounded-md px-3 py-1.5 text-sm font-medium"
-        [class.bg-accent]="viewMode() === 'plan'"
-        [class.text-white]="viewMode() === 'plan'"
-        [attr.aria-pressed]="viewMode() === 'plan'"
-        (click)="setView('plan')"
-      >
-        Plan
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-3 py-1.5 text-sm font-medium"
-        [class.bg-accent]="viewMode() === '3d'"
-        [class.text-white]="viewMode() === '3d'"
-        [attr.aria-pressed]="viewMode() === '3d'"
-        (click)="setView('3d')"
-      >
-        Vue 3D
-      </button>
-      <button
-        type="button"
-        class="rounded-md px-3 py-1.5 text-sm font-medium"
-        [class.bg-accent]="viewMode() === 'list'"
-        [class.text-white]="viewMode() === 'list'"
-        [attr.aria-pressed]="viewMode() === 'list'"
-        (click)="setView('list')"
-      >
-        Liste
-      </button>
-    </div>
-  </div>
-
-  <!-- Légende : chaque état a un symbole et un libellé -->
-  <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted" aria-label="Légende des postes">
-    @for (key of stateKeys; track key) {
-      <li class="flex items-center gap-1.5">
-        <span aria-hidden="true" class="font-bold text-ink">{{ DESK_STATE_META[key].symbol }}</span>
-        {{ DESK_STATE_META[key].label }}
-      </li>
-    }
-  </ul>
-
-  @if (loadError()) {
-    <app-empty-state title="Impossible de charger le plan" description="Vérifiez votre connexion puis réessayez.">
-      <button ui-button variant="secondary" type="button" (click)="retry()">Réessayer</button>
-    </app-empty-state>
-  } @else if (!availability() || !detail()) {
-    <div class="rounded-xl border border-line bg-surface p-4 shadow-card">
-      <div class="h-72 w-full animate-pulse rounded-lg bg-line" role="status" aria-label="Chargement du plan"></div>
-    </div>
-  } @else if (viewMode() === '3d') {
-    @if (detail(); as plan) {
-      <app-floor-scene-3d [detail]="plan" [desks]="sceneDesks()" (deskPicked)="onScenePick($event)" />
-    }
-  } @else if (viewMode() === 'plan') {
-    @if (detail(); as plan) {
-      <div class="overflow-x-auto rounded-xl border border-line bg-surface p-3 shadow-card">
-        <svg
-          class="mx-auto h-auto w-full min-w-160 text-ink-subtle"
-          [attr.viewBox]="'0 0 ' + plan.width + ' ' + plan.height"
-          role="group"
-          [attr.aria-label]="'Plan de ' + plan.name + ', ' + desks().length + ' postes'"
-        >
-          <defs>
-            <pattern id="ilot-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <rect width="3" height="6" class="fill-ink-subtle" />
-            </pattern>
-          </defs>
-
-          @for (zone of plan.zones; track zone.name) {
-            <g aria-hidden="true">
-              <rect
-                [attr.x]="zone.x"
-                [attr.y]="zone.y"
-                [attr.width]="zone.width"
-                [attr.height]="zone.height"
-                rx="10"
-                [class]="zone.kind === 'openspace' ? 'fill-canvas stroke-line' : 'fill-surface stroke-line-strong'"
-                stroke-width="1.5"
-              />
-              <text
-                [attr.x]="zone.x + 12"
-                [attr.y]="zone.y + 22"
-                font-size="13"
-                class="fill-ink-muted"
+            @for (desk of desks(); track desk.id) {
+              <g
+                class="group cursor-pointer outline-none"
+                role="button"
+                tabindex="0"
+                [attr.aria-label]="desk.ariaLabel"
+                (click)="openFromPlan(desk)"
+                (keydown)="onDeskKeydown(desk, $event)"
               >
-                {{ zone.name }}
-              </text>
-            </g>
-          }
-
-          @for (desk of desks(); track desk.id) {
-            <g
-              class="group cursor-pointer outline-none"
-              role="button"
-              tabindex="0"
-              [attr.aria-label]="desk.ariaLabel"
-              (click)="openFromPlan(desk, $event)"
-              (keydown)="onDeskKeydown(desk, $event)"
-            >
-              <title>{{ hoverText(desk) }}</title>
-
-              <!-- Cadre de focus clavier, visible uniquement en navigation au clavier -->
-              <rect
-                [attr.x]="desk.x - 4"
-                [attr.y]="desk.y - 4"
-                [attr.width]="desk.width + 8"
-                [attr.height]="desk.height + 8"
-                rx="9"
-                class="fill-none stroke-accent opacity-0 group-focus-visible:opacity-100"
-                stroke-width="3"
-              />
-
-              <rect
-                [attr.x]="desk.x"
-                [attr.y]="desk.y"
-                [attr.width]="desk.width"
-                [attr.height]="desk.height"
-                rx="6"
-                [class]="deskClass(desk.state)"
-                stroke-width="2"
-                [attr.stroke-dasharray]="deskDash(desk.state)"
-              />
-
-              @if (desk.state === 'BOOKED') {
+                <title>{{ hoverText(desk) }}</title>
+                <rect
+                  [attr.x]="desk.x - 4"
+                  [attr.y]="desk.y - 4"
+                  [attr.width]="desk.width + 8"
+                  [attr.height]="desk.height + 8"
+                  rx="9"
+                  class="fill-none stroke-accent opacity-0 group-focus-visible:opacity-100"
+                  stroke-width="3"
+                />
                 <rect
                   [attr.x]="desk.x"
                   [attr.y]="desk.y"
                   [attr.width]="desk.width"
                   [attr.height]="desk.height"
                   rx="6"
-                  fill="url(#ilot-hatch)"
-                  opacity="0.35"
+                  [class]="deskClass(desk.state)"
+                  stroke-width="2"
+                  [attr.stroke-dasharray]="deskDash(desk.state)"
                 />
+                @if (desk.state === 'BOOKED') {
+                  <rect
+                    [attr.x]="desk.x"
+                    [attr.y]="desk.y"
+                    [attr.width]="desk.width"
+                    [attr.height]="desk.height"
+                    rx="6"
+                    fill="url(#ilot-hatch)"
+                    opacity="0.35"
+                  />
+                }
+                <text
+                  [attr.x]="desk.x + desk.width / 2"
+                  [attr.y]="desk.y + 20"
+                  text-anchor="middle"
+                  font-size="12"
+                  font-weight="600"
+                  [class]="desk.state === 'MINE' ? 'fill-white' : 'fill-ink'"
+                >
+                  {{ desk.label }}
+                </text>
+                <text
+                  [attr.x]="desk.x + desk.width / 2"
+                  [attr.y]="desk.y + 38"
+                  text-anchor="middle"
+                  font-size="13"
+                  [class]="desk.state === 'MINE' ? 'fill-white' : 'fill-ink'"
+                  aria-hidden="true"
+                >
+                  {{ DESK_STATE_META[desk.state].symbol }}
+                </text>
+              </g>
+            }
+          </svg>
+        </div>
+      }
+    } @else {
+      <!-- Vue liste : alternative accessible, dans un panneau flottant -->
+      <div class="absolute inset-x-4 bottom-40 top-28 flex flex-col gap-3 overflow-auto rounded-2xl border border-white/70 bg-white/90 p-4 shadow-pop backdrop-blur-md">
+        <fieldset class="flex flex-wrap items-center gap-3">
+          <legend class="sr-only">Filtres</legend>
+          <label class="flex items-center gap-2 text-sm font-medium">
+            <input
+              #onlyFreeBox
+              type="checkbox"
+              class="h-4 w-4 accent-accent"
+              [checked]="onlyFree()"
+              (change)="toggleOnlyFree(onlyFreeBox.checked)"
+            />
+            Libres uniquement
+          </label>
+          <label class="flex items-center gap-2 text-sm font-medium">
+            Équipement
+            <select #equipmentSelect class="field w-auto" (change)="setEquipment(equipmentSelect.value)">
+              <option value="" [selected]="equipmentFilter() === ''">Tous</option>
+              @for (feature of equipmentOptions(); track feature) {
+                <option [value]="feature" [selected]="equipmentFilter() === feature">{{ feature }}</option>
               }
+            </select>
+          </label>
+          <label class="flex items-center gap-2 text-sm font-medium">
+            Zone
+            <select #zoneSelect class="field w-auto" (change)="setZone(zoneSelect.value)">
+              <option value="" [selected]="zoneFilter() === ''">Toutes</option>
+              @for (zone of zoneOptions(); track zone) {
+                <option [value]="zone" [selected]="zoneFilter() === zone">{{ zone }}</option>
+              }
+            </select>
+          </label>
+        </fieldset>
 
-              <text
-                [attr.x]="desk.x + desk.width / 2"
-                [attr.y]="desk.y + 20"
-                text-anchor="middle"
-                font-size="12"
-                font-weight="600"
-                [class]="desk.state === 'MINE' ? 'fill-white' : 'fill-ink'"
-              >
-                {{ desk.label }}
-              </text>
-              <text
-                [attr.x]="desk.x + desk.width / 2"
-                [attr.y]="desk.y + 38"
-                text-anchor="middle"
-                font-size="13"
-                [class]="desk.state === 'MINE' ? 'fill-white' : 'fill-ink'"
-                aria-hidden="true"
-              >
-                {{ DESK_STATE_META[desk.state].symbol }}
-              </text>
-            </g>
-          }
-        </svg>
+        @if (visibleDesks().length) {
+          <ul class="divide-y divide-line">
+            @for (desk of visibleDesks(); track desk.id) {
+              <li>
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-4 rounded-lg px-3 py-3 text-left hover:bg-canvas"
+                  [attr.aria-label]="desk.ariaLabel"
+                  (click)="openFromPlan(desk)"
+                >
+                  <span class="w-14 shrink-0 font-semibold">{{ desk.label }}</span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink-muted">
+                    {{ desk.zone }}@if (desk.features.length) { · {{ desk.features.join(', ') }} }
+                  </span>
+                  <span ui-badge [tone]="deskTone(desk.state)">
+                    <span aria-hidden="true">{{ DESK_STATE_META[desk.state].symbol }}</span>
+                    {{ DESK_STATE_META[desk.state].label }}
+                  </span>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <app-empty-state title="Aucun poste ne correspond à ces filtres">
+            <button ui-button variant="secondary" type="button" (click)="resetFilters()">Effacer les filtres</button>
+          </app-empty-state>
+        }
       </div>
     }
-  } @else {
-    <!-- Vue liste : alternative accessible au plan, par défaut sur mobile -->
-    <div class="flex flex-col gap-4">
-      <fieldset class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-3 shadow-card">
-        <legend class="sr-only">Filtres</legend>
-        <label class="flex items-center gap-2 text-sm font-medium">
-          <input
-            #onlyFreeBox
-            type="checkbox"
-            class="h-4 w-4 accent-accent"
-            [checked]="onlyFree()"
-            (change)="toggleOnlyFree(onlyFreeBox.checked)"
-          />
-          Libres uniquement
-        </label>
-        <label class="flex items-center gap-2 text-sm font-medium">
-          Équipement
-          <select #equipmentSelect class="field w-auto" (change)="setEquipment(equipmentSelect.value)">
-            <option value="" [selected]="equipmentFilter() === ''">Tous</option>
-            @for (feature of equipmentOptions(); track feature) {
-              <option [value]="feature" [selected]="equipmentFilter() === feature">{{ feature }}</option>
-            }
-          </select>
-        </label>
-        <label class="flex items-center gap-2 text-sm font-medium">
-          Zone
-          <select #zoneSelect class="field w-auto" (change)="setZone(zoneSelect.value)">
-            <option value="" [selected]="zoneFilter() === ''">Toutes</option>
-            @for (zone of zoneOptions(); track zone) {
-              <option [value]="zone" [selected]="zoneFilter() === zone">{{ zone }}</option>
-            }
-          </select>
-        </label>
-      </fieldset>
+  </div>
 
-      @if (visibleDesks().length) {
-        <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
-          @for (desk of visibleDesks(); track desk.id) {
-            <li>
-              <button
-                type="button"
-                class="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-canvas"
-                [attr.aria-label]="desk.ariaLabel"
-                (click)="openFromPlan(desk, $event)"
-              >
-                <span class="w-14 shrink-0 font-semibold">{{ desk.label }}</span>
-                <span class="min-w-0 flex-1 truncate text-sm text-ink-muted">
-                  {{ desk.zone }}@if (desk.features.length) { · {{ desk.features.join(', ') }} }
-                </span>
-                <span ui-badge [tone]="deskTone(desk.state)">
-                  <span aria-hidden="true">{{ DESK_STATE_META[desk.state].symbol }}</span>
-                  {{ DESK_STATE_META[desk.state].label }}
-                </span>
-              </button>
-            </li>
-          }
-        </ul>
-      } @else {
-        <app-empty-state title="Aucun poste ne correspond à ces filtres">
-          <button ui-button variant="secondary" type="button" (click)="resetFilters()">Effacer les filtres</button>
-        </app-empty-state>
+  <!-- Barre supérieure flottante : marque, navigation, utilisateur -->
+  <header
+    class="absolute inset-x-4 top-4 z-20 flex flex-wrap items-center gap-4 rounded-2xl border border-white/70 bg-white/85 px-4 py-2.5 shadow-pop backdrop-blur-md"
+  >
+    <a routerLink="/plan" class="flex items-center gap-2.5">
+      <span aria-hidden="true" class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-sm font-bold text-white">D</span>
+      <span class="text-base font-semibold">Desk’lib</span>
+    </a>
+
+    <nav class="flex min-w-0 gap-1 overflow-x-auto" aria-label="Navigation principale">
+      @for (item of nav(); track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="bg-accent-soft text-accent-ink"
+          #rla="routerLinkActive"
+          class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-ink-muted hover:bg-canvas hover:text-ink"
+          [attr.aria-current]="rla.isActive ? 'page' : null"
+        >
+          {{ item.label }}
+        </a>
+      }
+    </nav>
+
+    <div class="ml-auto flex items-center gap-3">
+      @if (user(); as u) {
+        <span
+          aria-hidden="true"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent-ink"
+          >{{ u.firstName.charAt(0) }}{{ u.lastName.charAt(0) }}</span
+        >
+        <div class="hidden text-right lg:block">
+          <p class="text-sm font-medium leading-tight">{{ u.firstName }} {{ u.lastName }}</p>
+          <p class="text-xs text-ink-subtle">{{ u.teamName ?? '' }}</p>
+        </div>
+        <button
+          type="button"
+          class="rounded-lg border border-line-strong px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas"
+          (click)="logout()"
+        >
+          Se déconnecter
+        </button>
       }
     </div>
+  </header>
+
+  <!-- Cartes de chiffres flottantes (hors vue liste) -->
+  @if (!loadError() && availability() && viewMode() !== 'list') {
+    <div class="absolute left-4 top-28 z-10 hidden flex-wrap gap-3 md:flex" aria-label="Indicateurs">
+      <div class="flex min-w-44 flex-col gap-1 rounded-2xl border border-white/70 bg-white/85 px-4 py-3 shadow-pop backdrop-blur-md">
+        <p class="text-xs font-medium text-ink-subtle">Postes libres</p>
+        <p class="text-2xl font-semibold">
+          {{ kpis().free }}
+          <span class="text-sm font-normal text-ink-subtle">/ {{ kpis().active }}</span>
+        </p>
+        <p class="text-xs text-ink-subtle">{{ floorName() }} · {{ dateLabel() }}</p>
+      </div>
+
+      <div class="flex min-w-44 flex-col gap-2 rounded-2xl border border-white/70 bg-white/85 px-4 py-3 shadow-pop backdrop-blur-md">
+        <p class="text-xs font-medium text-ink-subtle">Taux d’occupation</p>
+        <p class="text-2xl font-semibold">{{ kpis().occupancy }} %</p>
+        <div class="h-1.5 w-full overflow-hidden rounded-full bg-line" role="presentation">
+          <div class="h-full rounded-full bg-accent" [style.width.%]="kpis().occupancy"></div>
+        </div>
+      </div>
+
+      <div class="flex min-w-44 flex-col gap-1 rounded-2xl border border-white/70 bg-white/85 px-4 py-3 shadow-pop backdrop-blur-md">
+        <p class="text-xs font-medium text-ink-subtle">Postes au total</p>
+        <p class="text-2xl font-semibold">{{ kpis().total }}</p>
+        <p class="text-xs text-ink-subtle">dont {{ kpis().total - kpis().active }} indisponible(s)</p>
+      </div>
+    </div>
   }
+
+  <!-- Détail du poste sélectionné (panneau droit) -->
+  @if (selectedDesk(); as desk) {
+    <aside class="absolute right-4 top-28 z-10 max-h-[calc(100%-13rem)] w-80 overflow-auto" aria-label="Détail du poste">
+      <app-desk-popover
+        [desk]="desk"
+        [dateLabel]="dateLabel()"
+        [busy]="bookingBusy()"
+        [viewerHalves]="viewerHalves()"
+        (bookRequested)="book(desk, $event)"
+        (closeRequested)="clearSelection()"
+      />
+    </aside>
+  }
+
+  <!-- Barre inférieure flottante : dates, légende, étage, mode d'affichage -->
+  <footer
+    class="absolute inset-x-4 bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/85 p-3 shadow-pop backdrop-blur-md"
+  >
+    <div role="group" aria-label="Dates" class="flex gap-1.5 overflow-x-auto pb-0.5">
+      @for (option of dateOptions(); track option) {
+        <button
+          type="button"
+          class="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium"
+          [class.bg-accent]="option === date()"
+          [class.text-white]="option === date()"
+          [class.text-ink-muted]="option !== date()"
+          [class.hover:bg-canvas]="option !== date()"
+          [attr.aria-pressed]="option === date()"
+          [attr.aria-label]="dayLabel(option)"
+          (click)="selectDate(option)"
+        >
+          {{ shortDayLabel(option) }}
+        </button>
+      }
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <ul class="hidden flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted lg:flex" aria-label="Légende des postes">
+        @for (key of stateKeys; track key) {
+          <li class="flex items-center gap-1.5">
+            <span aria-hidden="true" class="font-bold text-ink">{{ DESK_STATE_META[key].symbol }}</span>
+            {{ DESK_STATE_META[key].label }}
+          </li>
+        }
+      </ul>
+
+      <div class="ml-auto flex flex-wrap items-center gap-2">
+        <label class="sr-only" for="floor-select">Étage</label>
+        <select
+          id="floor-select"
+          #floorSelect
+          class="field w-auto"
+          [value]="floorId() ?? ''"
+          (change)="selectFloor(floorSelect.value)"
+        >
+          @for (floor of floors(); track floor.id) {
+            <option [value]="floor.id">{{ floor.name }}</option>
+          }
+        </select>
+
+        <div class="flex rounded-lg border border-line-strong bg-surface p-0.5" role="group" aria-label="Mode d’affichage">
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium"
+            [class.bg-accent]="viewMode() === 'plan'"
+            [class.text-white]="viewMode() === 'plan'"
+            [attr.aria-pressed]="viewMode() === 'plan'"
+            (click)="setView('plan')"
+          >
+            Plan
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium"
+            [class.bg-accent]="viewMode() === '3d'"
+            [class.text-white]="viewMode() === '3d'"
+            [attr.aria-pressed]="viewMode() === '3d'"
+            (click)="setView('3d')"
+          >
+            Vue 3D
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium"
+            [class.bg-accent]="viewMode() === 'list'"
+            [class.text-white]="viewMode() === 'list'"
+            [attr.aria-pressed]="viewMode() === 'list'"
+            (click)="setView('list')"
+          >
+            Liste
+          </button>
+        </div>
+      </div>
+    </div>
+  </footer>
 </section>

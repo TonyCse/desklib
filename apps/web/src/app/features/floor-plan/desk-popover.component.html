@@ -1,33 +1,37 @@
-<div
-  cdkTrapFocus
-  role="dialog"
-  aria-modal="false"
-  [attr.aria-labelledby]="'popover-' + desk().id"
-  class="w-72 rounded-xl border border-line bg-surface p-4 shadow-pop"
+<section
+  role="region"
+  [attr.aria-labelledby]="'panel-' + desk().id"
+  class="flex w-full flex-col gap-4 rounded-2xl border border-white/70 bg-white/90 p-5 shadow-pop backdrop-blur-md"
 >
-  <div class="flex items-start justify-between gap-2">
+  <div class="flex items-start justify-between gap-3">
     <div>
-      <h2 [id]="'popover-' + desk().id" class="text-base font-semibold">Poste {{ desk().label }}</h2>
-      <p class="text-xs text-ink-subtle">{{ desk().zone }} · {{ dateLabel() }}</p>
+      <p class="text-xs font-medium uppercase tracking-wide text-ink-subtle">{{ desk().zone }} · {{ dateLabel() }}</p>
+      <h2 [id]="'panel-' + desk().id" class="mt-1 text-xl font-semibold">Poste {{ desk().label }}</h2>
     </div>
-    <span
-      class="rounded-full bg-canvas px-2 py-0.5 text-xs font-medium text-ink-muted"
-      [attr.aria-label]="'Statut : ' + stateMeta(desk().state).label"
+    <button
+      type="button"
+      class="rounded-lg px-2 py-1 text-ink-muted hover:bg-canvas hover:text-ink"
+      aria-label="Fermer le détail du poste"
+      (click)="closeRequested.emit()"
     >
-      <span aria-hidden="true">{{ stateMeta(desk().state).symbol }}</span>
-      {{ stateMeta(desk().state).label }}
-    </span>
+      ×
+    </button>
   </div>
 
+  <span class="inline-flex w-fit items-center gap-1.5 rounded-full bg-canvas px-3 py-1 text-xs font-medium text-ink-muted">
+    <span aria-hidden="true">{{ stateMeta(desk().state).symbol }}</span>
+    {{ stateMeta(desk().state).label }}
+  </span>
+
   @if (desk().features.length) {
-    <ul class="mt-3 flex flex-wrap gap-1.5" aria-label="Équipements">
+    <ul class="flex flex-wrap gap-1.5" aria-label="Équipements">
       @for (feature of desk().features; track feature) {
         <li><span ui-badge tone="neutral">{{ feature }}</span></li>
       }
     </ul>
   }
 
-  <dl class="mt-4 flex flex-col gap-2 text-sm">
+  <dl class="flex flex-col gap-2 rounded-xl bg-canvas/70 p-3 text-sm">
     <div class="flex items-center justify-between gap-3">
       <dt class="text-ink-muted">Matin</dt>
       <dd class="text-right font-medium">{{ halfText('AM') }}</dd>
@@ -39,23 +43,20 @@
   </dl>
 
   @if (desk().reservedTeamName) {
-    <p class="mt-3 rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn-ink">
+    <p class="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn-ink">
       Poste réservé à l’équipe {{ desk().reservedTeamName }}.
     </p>
   }
 
-  <div class="mt-4 flex flex-col gap-2">
-    <button data-action ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('AM')" (click)="bookRequested.emit('AM')">
+  <div class="flex flex-col gap-2">
+    <button ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('AM')" (click)="bookRequested.emit('AM')">
       Réserver le matin
     </button>
-    <button data-action ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('PM')" (click)="bookRequested.emit('PM')">
+    <button ui-button variant="secondary" type="button" class="w-full" [disabled]="busy() || !canBook('PM')" (click)="bookRequested.emit('PM')">
       Réserver l’après-midi
     </button>
-    <button data-action ui-button type="button" class="w-full" [disabled]="busy() || !canBook('FULL')" (click)="bookRequested.emit('FULL')">
+    <button ui-button type="button" class="w-full" [disabled]="busy() || !canBook('FULL')" (click)="bookRequested.emit('FULL')">
       Réserver la journée
     </button>
-    <button data-action ui-button variant="ghost" type="button" class="w-full" (click)="closeRequested.emit()">
-      Fermer
-    </button>
   </div>
-</div>
+</section>
