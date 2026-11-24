@@ -17,6 +17,8 @@ import {
 import {
   AuditQueryDto,
   CreateDeskDto,
+  CreateVehicleDto,
+  UpdateVehicleDto,
   RangeQueryDto,
   UpdateDeskDto,
   UpdateSettingsDto,
@@ -351,7 +353,81 @@ export class AdminService {
     });
   }
 
-  // ----- Helpers ------------------------------------------------------------
+  // ----- Véhicules ----------------------------------------------------------
+
+  listVehicles() {
+    return this.prisma.vehicle.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, plate: true, isActive: true },
+    });
+  }
+
+  async createVehicle(actor: AuthUser, dto: CreateVehicleDto) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const vehicle = await tx.vehicle.create({
+          data: {
+            name: dto.name,
+            plate: dto.plate,
+            isActive: dto.isActive ?? true,
+          },
+          select: { id: true, name: true, plate: true, isActive: true },
+        });
+        await this.audit.record(
+          {
+            actorId: actor.id,
+            action: 'VEHICLE_CREATED',
+            entityType: 'Vehicle',
+            entityId: vehicle.id,
+            payload: { name: dto.name, plate: dto.plate },
+          },
+          tx,
+        );
+        return vehicle;
+      });
+    } catch (error) {
+      throw toPlateConflict(error);
+    }
+  }
+
+  async updateVehicle(actor: AuthUser, id: string, dto: UpdateVehicleDto) {
+    const before = await this.prisma.vehicle.findUnique({
+      where: { id },
+      select: { name: true, plate: true, isActive: true },
+    });
+    if (!before) throw new NotFoundException('Véhicule introuvable');
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const after = await tx.vehicle.update({
+          where: { id },
+          data: dto,
+          select: { id: true, name: true, plate: true, isActive: true },
+        });
+        await this.audit.record(
+          {
+            actorId: actor.id,
+            action: 'VEHICLE_UPDATED',
+            entityType: 'Vehicle',
+            entityId: id,
+            payload: {
+              before,
+              after: {
+                name: after.name,
+                plate: after.plate,
+                isActive: after.isActive,
+              },
+            },
+          },
+          tx,
+        );
+        return after;
+      });
+    } catch (error) {
+      throw toPlateConflict(error);
+    }
+  }
+
+  // ----- Helpers  // ----- Helpers ------------------------------------------------------------
 
   private async assertFloorAndTeam(
     floorId: string | null,
@@ -379,6 +455,16 @@ function pick<T extends object>(source: T, dto: object): Partial<T> {
   return Object.fromEntries(
     keys.filter((k) => k in source).map((k) => [k, source[k]]),
   ) as Partial<T>;
+}
+
+function toPlateConflict(error: unknown): Error {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    return new ConflictException('Cette plaque est déjà enregistrée');
+  }
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function toLabelConflict(error: unknown): Error {

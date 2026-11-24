@@ -276,6 +276,9 @@ function buildFloors() {
 async function main(): Promise<void> {
   console.info('Remise à zéro des données de démo…');
   await prisma.auditLog.deleteMany();
+  await prisma.vehicleSlot.deleteMany();
+  await prisma.vehicleBooking.deleteMany();
+  await prisma.vehicle.deleteMany();
   await prisma.bookingSlot.deleteMany();
   await prisma.booking.deleteMany();
   await prisma.desk.deleteMany();
@@ -456,6 +459,47 @@ async function main(): Promise<void> {
   console.info(
     `Réservations : ${bookingCount} actives, ${cancelledCount} annulées (historique).`,
   );
+  // Véhicules de fonction : deux pour commencer, l'admin peut en ajouter.
+  const vehicles = [];
+  for (const v of [
+    { name: 'Peugeot 3008 Hybride', plate: 'FA-101-DM' },
+    { name: 'Renault Kangoo Électrique', plate: 'FA-202-DM' },
+  ]) {
+    vehicles.push(await prisma.vehicle.create({ data: v }));
+  }
+
+  const vehicleOccupied = new Set<string>(); // vehicleId|jour|demi-journée
+  const vehicleUserHalf = new Set<string>(); // userId|jour|demi-journée
+  for (let day = start; day <= end; day = addDays(day, 1)) {
+    if (isWeekend(day)) continue;
+    const date = parseIsoDate(day);
+    if (!date) continue;
+    for (const half of ['AM', 'PM'] as const) {
+      for (const vehicle of vehicles) {
+        if (rng() > 0.45) continue;
+        const driver = shuffle(users).find(
+          (u) => !vehicleUserHalf.has(`${u.id}|${day}|${half}`) && rng() < 0.5,
+        );
+        if (!driver) continue;
+        if (vehicleOccupied.has(`${vehicle.id}|${day}|${half}`)) continue;
+        vehicleOccupied.add(`${vehicle.id}|${day}|${half}`);
+        vehicleUserHalf.add(`${driver.id}|${day}|${half}`);
+        await prisma.vehicleBooking.create({
+          data: {
+            vehicleId: vehicle.id,
+            userId: driver.id,
+            date,
+            status: 'ACTIVE',
+            createdById: driver.id,
+            slots: {
+              create: [{ vehicleId: vehicle.id, userId: driver.id, date, half }],
+            },
+          },
+        });
+      }
+    }
+  }
+
   console.info(
     `Compte démo : mot de passe « ${DEMO_PASSWORD} » (salarie@, manager@, admin@meridia.demo).`,
   );

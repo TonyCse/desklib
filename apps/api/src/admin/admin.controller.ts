@@ -16,6 +16,8 @@ import { AdminService } from './admin.service.js';
 import {
   AuditQueryDto,
   CreateDeskDto,
+  CreateVehicleDto,
+  UpdateVehicleDto,
   RangeQueryDto,
   UpdateDeskDto,
   UpdateSettingsDto,
@@ -45,6 +47,25 @@ export class AdminController {
     @Body() dto: UpdateDeskDto,
   ) {
     return this.admin.updateDesk(actor, id, dto);
+  }
+
+  @Get('vehicles')
+  listVehicles() {
+    return this.admin.listVehicles();
+  }
+
+  @Post('vehicles')
+  createVehicle(@CurrentUser() actor: AuthUser, @Body() dto: CreateVehicleDto) {
+    return this.admin.createVehicle(actor, dto);
+  }
+
+  @Patch('vehicles/:id')
+  updateVehicle(
+    @CurrentUser() actor: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateVehicleDto,
+  ) {
+    return this.admin.updateVehicle(actor, id, dto);
   }
 
   @Get('settings')

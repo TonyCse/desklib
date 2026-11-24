@@ -1,4 +1,4 @@
-# Îlot
+# Desk’lib
 
 Outil interne de réservation de postes en flex office, pour l'entreprise fictive **Meridia** (cabinet de conseil, environ 80 salariés, 2 étages). Projet portfolio : Angular, NestJS, Prisma.
 
@@ -33,6 +33,7 @@ Mot de passe commun : `demo1234`
 - Quota de 3 jours sur site par semaine ISO.
 - Mes réservations : à venir et passées, annulation avec confirmation.
 - Planning d'équipe par semaine, taux de présence pour le manager, réservation pour un membre de son équipe.
+- Véhicules de fonction : réservation par matin, après-midi ou journée, mêmes règles de dates que les postes. Deux véhicules de démo, que l'administrateur peut ajouter ou désactiver.
 
 Administration (rôle ADMIN) : postes, règles de réservation, utilisateurs et rôles, statistiques d'occupation, journal d'audit paginé.
 

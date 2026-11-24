@@ -47,6 +47,9 @@ model User {
 
   bookings     Booking[]     @relation("BookingUser")
   createdBookings Booking[]  @relation("BookingCreator")
+  vehicleBookings VehicleBooking[] @relation("VehicleBookingUser")
+  createdVehicleBookings VehicleBooking[] @relation("VehicleBookingCreator")
+  vehicleSlots VehicleSlot[] @relation("VehicleSlotUser")
   slots        BookingSlot[]
   auditLogs    AuditLog[]
 }
@@ -134,4 +137,53 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([actorId])
+}
+
+// ----- Véhicules de fonction ---------------------------------------------
+// Même logique de créneaux que les postes, mais indépendante : un salarié peut
+// avoir un poste et un véhicule le même matin.
+
+model Vehicle {
+  id       String   @id @default(cuid())
+  name     String
+  plate    String   @unique
+  isActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  bookings VehicleBooking[]
+  slots    VehicleSlot[]
+}
+
+model VehicleBooking {
+  id        String        @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle       @relation(fields: [vehicleId], references: [id])
+  userId    String
+  user      User          @relation("VehicleBookingUser", fields: [userId], references: [id])
+  date      DateTime      @db.Date
+  status    BookingStatus @default(ACTIVE)
+  createdById String
+  createdBy User          @relation("VehicleBookingCreator", fields: [createdById], references: [id])
+  createdAt DateTime      @default(now())
+
+  slots     VehicleSlot[]
+
+  @@index([userId, date])
+  @@index([vehicleId, date])
+}
+
+model VehicleSlot {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   VehicleBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  userId    String
+  user      User     @relation("VehicleSlotUser", fields: [userId], references: [id])
+  date      DateTime @db.Date
+  half      Half
+
+  @@unique([vehicleId, date, half])
+  @@unique([userId, date, half])
+  @@index([bookingId])
 }

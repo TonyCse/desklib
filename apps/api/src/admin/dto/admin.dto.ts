@@ -14,8 +14,8 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { ROLES } from '@ilot/shared';
-import type { Role } from '@ilot/shared';
+import { ROLES } from '@desklib/shared';
+import type { Role } from '@desklib/shared';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -136,6 +136,40 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   teamId?: string | null;
+}
+
+export class CreateVehicleDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name!: string;
+
+  @Matches(/^[A-Z]{2}-\d{3}-[A-Z]{2}$/, {
+    message: 'plaque au format AA-123-AA',
+  })
+  plate!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateVehicleDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(60)
+  name?: string;
+
+  @IsOptional()
+  @Matches(/^[A-Z]{2}-\d{3}-[A-Z]{2}$/, {
+    message: 'plaque au format AA-123-AA',
+  })
+  plate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class RangeQueryDto {

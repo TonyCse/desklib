@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Half } from '@ilot/shared';
+import type { Half } from '@desklib/shared';
 import { AuditService } from '../audit/audit.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';

@@ -1,8 +1,8 @@
 {
-  "name": "ilot",
+  "name": "desklib",
   "private": true,
   "version": "0.1.0",
-  "description": "Îlot : outil interne de réservation de bureaux (flex office), projet portfolio",
+  "description": "Desk’lib : outil interne de réservation de bureaux (flex office), projet portfolio",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -11,16 +11,16 @@
     "node": ">=22.22.3"
   },
   "scripts": {
-    "dev": "npm run build -w @ilot/shared && concurrently -n api,web -c blue,magenta \"npm run dev -w @ilot/api\" \"npm run start -w @ilot/web\"",
-    "build": "npm run build -w @ilot/shared && npm run build -w @ilot/api && npm run build -w @ilot/web",
-    "test": "npm run build -w @ilot/shared && npm run test -w @ilot/api && npm run test -w @ilot/web",
+    "dev": "npm run build -w @desklib/shared && concurrently -n api,web -c blue,magenta \"npm run dev -w @desklib/api\" \"npm run start -w @desklib/web\"",
+    "build": "npm run build -w @desklib/shared && npm run build -w @desklib/api && npm run build -w @desklib/web",
+    "test": "npm run build -w @desklib/shared && npm run test -w @desklib/api && npm run test -w @desklib/web",
     "lint": "eslint .",
     "format": "prettier --write .",
     "db:up": "docker compose up -d",
-    "db:migrate": "npm run migrate -w @ilot/api",
-    "db:seed": "npm run seed -w @ilot/api",
+    "db:migrate": "npm run migrate -w @desklib/api",
+    "db:seed": "npm run seed -w @desklib/api",
     "e2e": "playwright test -c e2e/playwright.config.ts",
-    "db:migrate:deploy": "npm run migrate:deploy -w @ilot/api",
+    "db:migrate:deploy": "npm run migrate:deploy -w @desklib/api",
     "ci": "npm run lint && npm test && npm run build && npm run e2e",
     "screenshots": "cross-env SCREENSHOTS=1 playwright test -c e2e/playwright.config.ts e2e/screenshots.spec.ts"
   },

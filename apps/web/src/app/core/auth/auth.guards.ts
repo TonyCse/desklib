@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import type { CanActivateFn } from '@angular/router';
 import { Router } from '@angular/router';
-import type { Role } from '@ilot/shared';
+import type { Role } from '@desklib/shared';
 import { AuthService } from './auth.service';
 
 /** Redirige vers la connexion si aucune session n'est active. */

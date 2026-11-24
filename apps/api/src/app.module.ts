@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
 import { FloorsModule } from './floors/floors.module.js';
 import { SettingsController } from './settings/settings.controller.js';
+import { VehiclesModule } from './vehicles/vehicles.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { TeamsModule } from './teams/teams.module.js';
 import { HealthController } from './health.controller.js';
@@ -27,6 +28,7 @@ import { HealthController } from './health.controller.js';
     BookingsModule,
     TeamsModule,
     AdminModule,
+    VehiclesModule,
   ],
   controllers: [SettingsController, HealthController],
   providers: [

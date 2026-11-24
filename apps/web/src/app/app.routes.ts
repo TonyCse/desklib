@@ -8,7 +8,7 @@ import { LoginComponent } from './features/login/login.component';
  * Les gardes d'UX (authGuard, roleGuard) doublent les contrôles de l'API, sans les remplacer.
  */
 export const routes: Routes = [
-  { path: 'connexion', component: LoginComponent, title: 'Connexion · Îlot' },
+  { path: 'connexion', component: LoginComponent, title: 'Connexion · Desk’lib' },
   {
     path: '',
     component: ShellComponent,
@@ -17,25 +17,31 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'plan' },
       {
         path: 'plan',
-        title: 'Plan d’étage · Îlot',
+        title: 'Plan d’étage · Desk’lib',
         loadComponent: () =>
           import('./features/floor-plan/floor-plan.page').then((m) => m.FloorPlanPage),
       },
       {
+        path: 'vehicules',
+        title: 'Véhicules de fonction · Desk’lib',
+        loadComponent: () =>
+          import('./features/vehicles/vehicles.page').then((m) => m.VehiclesPage),
+      },
+      {
         path: 'mes-reservations',
-        title: 'Mes réservations · Îlot',
+        title: 'Mes réservations · Desk’lib',
         loadComponent: () =>
           import('./features/my-bookings/my-bookings.page').then((m) => m.MyBookingsPage),
       },
       {
         path: 'equipe',
-        title: 'Planning d’équipe · Îlot',
+        title: 'Planning d’équipe · Desk’lib',
         loadComponent: () =>
           import('./features/team-planning/team-planning.page').then((m) => m.TeamPlanningPage),
       },
       {
         path: 'admin',
-        title: 'Administration · Îlot',
+        title: 'Administration · Desk’lib',
         canActivate: [roleGuard('ADMIN')],
         loadComponent: () => import('./features/admin/admin.page').then((m) => m.AdminPage),
       },

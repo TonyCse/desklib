@@ -1,4 +1,4 @@
-import type { Role } from '@ilot/shared';
+import type { Role } from '@desklib/shared';
 
 /** Utilisateur connecté, tel que renvoyé par GET /api/auth/me (jamais de mot de passe). */
 export interface PublicUser {
@@ -71,6 +71,16 @@ export interface MyBooking {
   status: 'ACTIVE' | 'CANCELLED';
   deskLabel: string;
   floorName: string;
+  halves: HalfKey[];
+  cancellable: boolean;
+}
+
+export interface MyVehicleBooking {
+  id: string;
+  date: string;
+  status: 'ACTIVE' | 'CANCELLED';
+  vehicleName: string;
+  vehiclePlate: string;
   halves: HalfKey[];
   cancellable: boolean;
 }

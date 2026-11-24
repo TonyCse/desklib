@@ -5,7 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Role } from '@ilot/shared';
+import type { Role } from '@desklib/shared';
 import { AuthUser, ROLES_KEY } from '../decorators/auth.decorators.js';
 
 /** RBAC côté API : vérifie le rôle si la route porte @Roles(...). */

@@ -1,4 +1,4 @@
-# CLAUDE.md : Îlot (Desk'lib)
+# CLAUDE.md : Desk’lib (Desk'lib)
 
 Outil interne de réservation de postes (flex office) pour l'entreprise fictive Meridia. Projet portfolio. Toute l'interface est en français.
 
@@ -39,7 +39,7 @@ Node 22.22.3+ requis (Angular 22). Le `.env` est unique, à la racine (copie de 
 
 ## Décisions
 
-- Package `@ilot/*`, dossier `Desk'lib`.
+- Package `@desklib/*`, dossier `Desk'lib`.
 - `argon2` pour le hash des mots de passe.
 - Le template Nest 12 (observabilité `@nestjs/observe`, envoi vers un service externe) a été retiré.
 - Prisma client généré dans `apps/api/src/generated/prisma` (ignoré par git), en ESM.

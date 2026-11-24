@@ -1,4 +1,4 @@
-import type { Half } from '@ilot/shared';
+import type { Half } from '@desklib/shared';
 
 /**
  * Règles métier de réservation. Fonctions pures : pas de Nest, pas de Prisma, pas d'horloge

@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import type { Role } from '@ilot/shared';
+import type { Role } from '@desklib/shared';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/notifications/toast.service';
 import { EmptyStateComponent, SkeletonComponent } from '../../shared/ui/feedback.components';

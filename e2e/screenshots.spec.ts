@@ -16,7 +16,7 @@ test('captures des écrans principaux', async ({ page }) => {
   mkdirSync(OUT, { recursive: true });
 
   await page.goto('/connexion');
-  await expect(page.getByRole('heading', { name: 'Connexion à Îlot' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Connexion à Desk’lib' })).toBeVisible();
   await page.screenshot({ path: path.join(OUT, 'connexion.png') });
 
   // Salarié : plan d'étage, vue plan, puis popover ouverte sur un poste libre.

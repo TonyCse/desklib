@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import type { Role } from '@ilot/shared';
+import type { Role } from '@desklib/shared';
 import { AuthService } from '../auth/auth.service';
 import { ToastContainerComponent } from '../../shared/ui/toast-container.component';
 
@@ -12,6 +12,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { label: 'Plan d’étage', path: '/plan', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
+  { label: 'Véhicules de fonction', path: '/vehicules', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
   { label: 'Mes réservations', path: '/mes-reservations', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
   { label: 'Planning d’équipe', path: '/equipe', roles: ['EMPLOYEE', 'MANAGER', 'ADMIN'] },
   { label: 'Administration', path: '/admin', roles: ['ADMIN'] },

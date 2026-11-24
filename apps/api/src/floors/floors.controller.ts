@@ -5,7 +5,7 @@ import {
   Param,
   Query,
 } from '@nestjs/common';
-import type { Half } from '@ilot/shared';
+import type { Half } from '@desklib/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { parseIsoDate } from '../bookings/domain/booking-rules.js';
 import { AvailabilityQueryDto } from './dto/availability-query.dto.js';

@@ -1,14 +1,16 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { AdminAuditComponent } from './admin-audit.component';
 import { AdminDesksComponent } from './admin-desks.component';
+import { AdminVehiclesComponent } from './admin-vehicles.component';
 import { AdminRulesComponent } from './admin-rules.component';
 import { AdminStatsComponent } from './admin-stats.component';
 import { AdminUsersComponent } from './admin-users.component';
 
-type AdminTab = 'desks' | 'rules' | 'users' | 'stats' | 'audit';
+type AdminTab = 'desks' | 'vehicles' | 'rules' | 'users' | 'stats' | 'audit';
 
 const TABS: { id: AdminTab; label: string }[] = [
   { id: 'desks', label: 'Postes' },
+  { id: 'vehicles', label: 'Véhicules' },
   { id: 'rules', label: 'Règles' },
   { id: 'users', label: 'Utilisateurs' },
   { id: 'stats', label: 'Statistiques' },
@@ -20,6 +22,7 @@ const TABS: { id: AdminTab; label: string }[] = [
   selector: 'app-admin-page',
   imports: [
     AdminDesksComponent,
+    AdminVehiclesComponent,
     AdminRulesComponent,
     AdminUsersComponent,
     AdminStatsComponent,
@@ -60,6 +63,9 @@ const TABS: { id: AdminTab; label: string }[] = [
         @switch (tab()) {
           @case ('desks') {
             <app-admin-desks />
+          }
+          @case ('vehicles') {
+            <app-admin-vehicles />
           }
           @case ('rules') {
             <app-admin-rules />

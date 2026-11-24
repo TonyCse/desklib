@@ -68,9 +68,9 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
 
   // Annulation avec confirmation.
   await page
-    .getByRole('button', { name: `Annuler la réservation du poste ${label} du` })
+    .getByRole('button', { name: `Annuler la réservation : Poste ${label} du` })
     .first()
     .click();
   await page.getByRole('button', { name: 'Oui, annuler' }).click();
-  await expect(page.getByText(/annulée\./)).toBeVisible();
+  await expect(page.getByText(/Réservation annulée : Poste/)).toBeVisible();
 });

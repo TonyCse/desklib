@@ -53,7 +53,7 @@ jobs:
 
       - name: Client Prisma, migrations et seed
         run: |
-          npm run generate -w @ilot/api
+          npm run generate -w @desklib/api
           npm run db:migrate:deploy
           npm run db:seed
 

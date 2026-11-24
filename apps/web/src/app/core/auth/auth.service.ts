@@ -3,7 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { firstValueFrom, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
-import type { Role } from '@ilot/shared';
+import type { Role } from '@desklib/shared';
 import type { PublicUser } from '../models';
 
 /**

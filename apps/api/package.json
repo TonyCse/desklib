@@ -1,7 +1,7 @@
 {
-  "name": "@ilot/api",
+  "name": "@desklib/api",
   "version": "0.0.1",
-  "description": "API Îlot (NestJS + Prisma)",
+  "description": "API Desk’lib (NestJS + Prisma)",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
