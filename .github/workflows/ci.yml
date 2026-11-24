@@ -48,14 +48,15 @@ jobs:
       - name: Installation des dépendances
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
       - name: Client Prisma, migrations et seed
+        # Avant le lint : le client généré est importé par l'API, le lint typé en a besoin.
         run: |
           npm run generate -w @desklib/api
           npm run db:migrate:deploy
           npm run db:seed
+
+      - name: Lint
+        run: npm run lint
 
       - name: Tests unitaires et composants
         run: npm test
