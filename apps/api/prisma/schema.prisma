@@ -1,0 +1,137 @@
+// Schéma Îlot. Les contraintes uniques sont la dernière ligne de défense
+// contre la double réservation, même en cas de requêtes simultanées.
+
+generator client {
+  provider   = "prisma-client"
+  output     = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+}
+
+enum Half {
+  AM
+  PM
+}
+
+enum BookingStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model Team {
+  id       String @id @default(cuid())
+  name     String @unique
+  color    String
+  users    User[]
+  desks    Desk[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role     @default(EMPLOYEE)
+  teamId       String?
+  team         Team?    @relation(fields: [teamId], references: [id])
+
+  bookings     Booking[]     @relation("BookingUser")
+  createdBookings Booking[]  @relation("BookingCreator")
+  slots        BookingSlot[]
+  auditLogs    AuditLog[]
+}
+
+model Floor {
+  id     String @id @default(cuid())
+  name   String
+  width  Int
+  height Int
+  /// Zones décoratives : [{ name, kind, x, y, width, height }]
+  zones  Json
+  desks  Desk[]
+}
+
+model Desk {
+  id             String        @id @default(cuid())
+  floorId        String
+  floor          Floor         @relation(fields: [floorId], references: [id])
+  label          String
+  x              Int
+  y              Int
+  width          Int
+  height         Int
+  features       String[]
+  reservedTeamId String?
+  reservedTeam   Team?         @relation(fields: [reservedTeamId], references: [id])
+  isActive       Boolean       @default(true)
+
+  bookings       Booking[]
+  slots          BookingSlot[]
+
+  @@unique([floorId, label])
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation("BookingUser", fields: [userId], references: [id])
+  deskId      String
+  desk        Desk          @relation(fields: [deskId], references: [id])
+  date        DateTime      @db.Date
+  status      BookingStatus @default(ACTIVE)
+  createdById String
+  createdBy   User          @relation("BookingCreator", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+
+  slots       BookingSlot[]
+
+  @@index([userId, date])
+  @@index([deskId, date])
+}
+
+model BookingSlot {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  deskId    String
+  desk      Desk     @relation(fields: [deskId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  date      DateTime @db.Date
+  half      Half
+
+  // Une demi-journée par poste, et une demi-journée par salarié.
+  @@unique([deskId, date, half])
+  @@unique([userId, date, half])
+  @@index([bookingId])
+}
+
+model Settings {
+  id            Int @id @default(1)
+  maxAdvanceDays Int @default(14)
+  weeklyQuota    Int @default(3)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+}

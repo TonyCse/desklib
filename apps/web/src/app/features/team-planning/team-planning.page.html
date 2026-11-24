@@ -1,0 +1,155 @@
+<section class="flex flex-col gap-6">
+  <header class="flex flex-wrap items-end justify-between gap-4">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-semibold">
+        Planning d’équipe
+        @if (planning(); as p) {
+          <span class="text-ink-muted">· {{ p.team.name }}</span>
+        }
+      </h1>
+      <p class="text-sm text-ink-muted">Semaine du {{ weekLabel() }}</p>
+    </div>
+
+    <div class="flex items-center gap-2" role="group" aria-label="Navigation par semaine">
+      <button ui-button variant="secondary" size="sm" type="button" (click)="previousWeek()">← Précédente</button>
+      <button ui-button variant="ghost" size="sm" type="button" (click)="thisWeek()">Cette semaine</button>
+      <button ui-button variant="secondary" size="sm" type="button" (click)="nextWeek()">Suivante →</button>
+    </div>
+  </header>
+
+  @if (isManager() && planning(); as p) {
+    @if (p.presenceRate !== null) {
+      <div class="flex items-center gap-4 rounded-xl border border-line bg-surface p-4 shadow-card">
+        <div>
+          <p class="text-sm text-ink-muted">Taux de présence de l’équipe</p>
+          <p class="text-2xl font-semibold">{{ p.presenceRate * 100 | number: '1.0-0' }} %</p>
+        </div>
+        <p class="text-xs text-ink-subtle">Part des jours ouvrés où un membre a au moins un créneau.</p>
+      </div>
+    }
+  }
+
+  @if (loadError()) {
+    <app-empty-state title="Impossible de charger le planning" description="Réessayez dans un instant." />
+  } @else if (!planning()) {
+    <div class="rounded-xl border border-line bg-surface p-5 shadow-card">
+      <app-skeleton label="Chargement du planning" />
+    </div>
+  } @else if (planning(); as p) {
+    @if (p.members.length === 0) {
+      <app-empty-state title="Aucun membre dans cette équipe" />
+    } @else {
+      <div class="overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
+        <table class="w-full min-w-180 border-collapse text-sm">
+          <caption class="sr-only">Planning de {{ p.team.name }}, semaine {{ p.week }}</caption>
+          <thead>
+            <tr class="border-b border-line bg-canvas text-left text-ink-muted">
+              <th scope="col" class="px-4 py-3 font-medium">Salarié</th>
+              @for (day of p.days; track day) {
+                <th scope="col" class="px-3 py-3 font-medium capitalize">{{ dayHeader(day) }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (member of p.members; track member.id) {
+              <tr class="border-b border-line last:border-0">
+                <th scope="row" class="px-4 py-3 text-left font-medium whitespace-nowrap">
+                  {{ member.name }}
+                  @if (member.id === user()?.id) {
+                    <span class="ml-1 text-xs text-ink-subtle">(vous)</span>
+                  }
+                </th>
+                @for (day of member.days; track day.date) {
+                  <td class="px-3 py-3 align-top">
+                    @if (day.am || day.pm) {
+                      <span class="inline-flex rounded-md bg-accent-soft px-2 py-1 text-xs font-medium text-accent-ink">
+                        {{ slotText(day.am, day.pm) }}
+                      </span>
+                    } @else {
+                      <span class="text-xs text-ink-subtle">
+                        <span aria-hidden="true">—</span>
+                        <span class="sr-only">Absent</span>
+                      </span>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (isManager()) {
+      <section class="rounded-xl border border-line bg-surface p-5 shadow-card" aria-labelledby="book-title">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="book-title" class="text-base font-semibold">Réserver pour un membre</h2>
+            <p class="text-sm text-ink-muted">Vous ne pouvez réserver que pour les membres de votre équipe.</p>
+          </div>
+          <button ui-button variant="secondary" type="button" [attr.aria-expanded]="bookingOpen()" (click)="toggleBooking()">
+            {{ bookingOpen() ? 'Fermer' : 'Réserver' }}
+          </button>
+        </div>
+
+        @if (bookingOpen()) {
+          <form class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-6" (submit)="$event.preventDefault(); submitBooking()">
+            <label class="flex flex-col gap-1 text-sm font-medium">
+              Membre
+              <select class="field" name="member" [value]="bookingMemberId()" (change)="bookingMemberId.set($any($event.target).value)">
+                <option value="">Choisir…</option>
+                @for (member of otherMembers(); track member.id) {
+                  <option [value]="member.id">{{ member.name }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-1 text-sm font-medium">
+              Étage
+              <select class="field" name="floor" [value]="bookingFloorId()" (change)="bookingDeskId.set(''); bookingFloorId.set($any($event.target).value)">
+                @for (floor of floors(); track floor.id) {
+                  <option [value]="floor.id">{{ floor.name }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-1 text-sm font-medium">
+              Date
+              <select class="field" name="date" [value]="bookingDate()" (change)="bookingDate.set($any($event.target).value)">
+                @for (day of weekDays(); track day) {
+                  <option [value]="day">{{ dayHeader(day) }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-1 text-sm font-medium">
+              Créneau
+              <select class="field" name="half" [value]="bookingHalf()" (change)="bookingHalf.set($any($event.target).value)">
+                @for (option of halfOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-1 text-sm font-medium">
+              Poste
+              <select class="field" name="desk" [value]="bookingDeskId()" (change)="bookingDeskId.set($any($event.target).value)">
+                <option value="">Choisir…</option>
+                @for (desk of freeDesks(); track desk.id) {
+                  <option [value]="desk.id">{{ desk.label }}</option>
+                }
+              </select>
+            </label>
+
+            <div class="flex items-end">
+              <button ui-button type="submit" class="w-full" [disabled]="submitting() || !bookingMemberId() || !bookingDeskId()">
+                {{ submitting() ? 'Réservation…' : 'Réserver' }}
+              </button>
+            </div>
+          </form>
+          <p class="mt-3 text-xs text-ink-subtle">Seuls les postes libres sur le créneau choisi sont proposés.</p>
+        }
+      </section>
+    }
+  }
+</section>

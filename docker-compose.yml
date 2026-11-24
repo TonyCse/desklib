@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: ilot-postgres
+    environment:
+      POSTGRES_USER: ilot
+      POSTGRES_PASSWORD: ilot
+      POSTGRES_DB: ilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - ilot-pgdata:/var/lib/postgresql/data
+
+volumes:
+  ilot-pgdata:

@@ -1,0 +1,96 @@
+<section class="flex flex-col gap-6">
+  <header class="flex flex-col gap-1">
+    <h1 class="text-2xl font-semibold">Mes réservations</h1>
+    <p class="text-sm text-ink-muted">Annulez une réservation jusqu’au début du créneau.</p>
+  </header>
+
+  <div class="flex w-fit rounded-lg border border-line-strong p-0.5" role="tablist" aria-label="Période">
+    <button
+      type="button"
+      role="tab"
+      id="tab-upcoming"
+      aria-controls="panel-bookings"
+      class="rounded-md px-4 py-1.5 text-sm font-medium"
+      [class.bg-accent]="scope() === 'upcoming'"
+      [class.text-white]="scope() === 'upcoming'"
+      [attr.aria-selected]="scope() === 'upcoming'"
+      (click)="selectScope('upcoming')"
+    >
+      À venir
+    </button>
+    <button
+      type="button"
+      role="tab"
+      id="tab-past"
+      aria-controls="panel-bookings"
+      class="rounded-md px-4 py-1.5 text-sm font-medium"
+      [class.bg-accent]="scope() === 'past'"
+      [class.text-white]="scope() === 'past'"
+      [attr.aria-selected]="scope() === 'past'"
+      (click)="selectScope('past')"
+    >
+      Passées
+    </button>
+  </div>
+
+  <div id="panel-bookings" role="tabpanel" [attr.aria-labelledby]="scope() === 'upcoming' ? 'tab-upcoming' : 'tab-past'">
+    @if (bookings() === null) {
+      <div class="rounded-xl border border-line bg-surface p-5 shadow-card">
+        <app-skeleton label="Chargement de vos réservations" />
+      </div>
+    } @else if (loadError()) {
+      <app-empty-state title="Impossible de charger vos réservations" description="Réessayez dans un instant." />
+    } @else if (bookings()!.length === 0) {
+      <app-empty-state
+        [title]="scope() === 'upcoming' ? 'Aucune réservation à venir' : 'Aucune réservation passée'"
+        [description]="scope() === 'upcoming' ? 'Réservez un poste depuis le plan d’étage.' : 'Vos réservations passées et annulées apparaîtront ici.'"
+      />
+    } @else {
+      <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
+        @for (booking of bookings(); track booking.id) {
+          <li class="flex flex-wrap items-center gap-4 px-5 py-4">
+            <div class="flex min-w-0 flex-1 flex-col gap-1">
+              <p class="font-medium capitalize">{{ dayLabel(booking.date) }}</p>
+              <p class="text-sm text-ink-muted">Poste {{ booking.deskLabel }} · {{ booking.floorName }}</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              @if (booking.status === 'CANCELLED') {
+                <span ui-badge tone="danger">Annulée</span>
+              } @else {
+                <span ui-badge tone="accent">{{ halvesLabel(booking.halves) }}</span>
+              }
+            </div>
+
+            @if (scope() === 'upcoming' && booking.status === 'ACTIVE') {
+              @if (booking.cancellable) {
+                <button
+                  ui-button
+                  variant="secondary"
+                  size="sm"
+                  type="button"
+                  [attr.aria-label]="'Annuler la réservation du poste ' + booking.deskLabel + ' du ' + dayLabel(booking.date)"
+                  (click)="askCancel(booking)"
+                >
+                  Annuler
+                </button>
+              } @else {
+                <span class="text-xs text-ink-subtle">Créneau commencé : annulation impossible</span>
+              }
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</section>
+
+@if (pendingCancel(); as booking) {
+  <app-confirm-dialog
+    title="Annuler la réservation ?"
+    [message]="'Poste ' + booking.deskLabel + ' · ' + dayLabel(booking.date) + '. Cette action libère le poste pour les autres.'"
+    confirmLabel="Oui, annuler"
+    (confirmed)="confirmCancel()"
+    (cancelled)="dismissCancel()"
+  />
+}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+coverage/
+.angular/
+.env
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+apps/api/src/generated/
+
+# Skills générés par le CLI Prisma (non versionnés)
+.agents/
+apps/api/.agents/

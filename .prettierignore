@@ -1,0 +1,7 @@
+dist/
+node_modules/
+.angular/
+coverage/
+apps/api/src/generated/
+**/*.html
+package-lock.json

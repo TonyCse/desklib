@@ -1,0 +1,32 @@
+{
+  "name": "ilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Îlot : outil interne de réservation de bureaux (flex office), projet portfolio",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.22.3"
+  },
+  "scripts": {
+    "dev": "npm run build -w @ilot/shared && concurrently -n api,web -c blue,magenta \"npm run dev -w @ilot/api\" \"npm run start -w @ilot/web\"",
+    "build": "npm run build -w @ilot/shared && npm run build -w @ilot/api && npm run build -w @ilot/web",
+    "test": "npm run build -w @ilot/shared && npm run test -w @ilot/api && npm run test -w @ilot/web",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "db:up": "docker compose up -d",
+    "db:migrate": "npm run migrate -w @ilot/api",
+    "db:seed": "npm run seed -w @ilot/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.74.0",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.8.1",
+    "typescript-eslint": "^8.0.0"
+  }
+}
