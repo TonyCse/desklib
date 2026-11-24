@@ -258,6 +258,8 @@ export class OfficeScene {
   private floorId: string | null = null;
   private builtSignature = '';
   private siteKey = '';
+  private buildingW = 0;
+  private buildingH = 0;
   private detail: FloorDetail | null = null;
   private tweens: Tween[] = [];
   private lastTime = 0;
@@ -590,6 +592,8 @@ export class OfficeScene {
     rooms: readonly SceneRoom[],
   ): THREE.Group {
     const group = new THREE.Group();
+    this.buildingW = detail.width * S;
+    this.buildingH = detail.height * S;
     // Repères du plan : on repart de zéro pour les postes et les salles de cet étage.
     for (const key of [...this.markers.keys()]) {
       if (key.startsWith('desk:') || key.startsWith('room:')) this.markers.delete(key);
@@ -684,13 +688,13 @@ export class OfficeScene {
 
     group.add(this.box(zw * 0.5, 0.9, 0.05, this.material(0x1e293b, 0.4), cx, 1.5, z0 + 0.12));
 
-    const table = this.fit(this.model('table-round'), { footprint: Math.min(zw, zd) * 0.5 });
+    const table = this.fit(this.model('table-round'), { footprint: Math.min(zw, zd) * 0.42 });
     this.anchor(table, cx, cz);
     group.add(table);
     const rug = this.fit(this.model('rug'), { footprint: Math.min(zw, zd) * 0.95 });
     this.anchor(rug, cx, cz);
     group.add(rug);
-    const radius = Math.min(zw, zd) * 0.3;
+    const radius = Math.min(zw, zd) * 0.36;
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2;
       const chair = this.fit(this.model('chair-modern'), { height: 0.95 });
@@ -812,19 +816,19 @@ export class OfficeScene {
       group.add(plant);
     }
 
-    const loungeX = x0 + 0.9;
-    const loungeZ = z0 + zd * 0.78;
+    const loungeX = x0 + 6.0;
+    const loungeZ = z0 + zd - 1.1;
     const rug = this.fit(this.model('rug'), { footprint: 2.8 });
-    this.anchor(rug, loungeX + 1.2, loungeZ);
+    this.anchor(rug, loungeX + 2.0, loungeZ);
     group.add(rug);
     const sofa = this.fit(this.model('sofa'), { footprint: 2.2 });
-    this.anchor(sofa, loungeX + 1.2, loungeZ - 1.0);
+    this.anchor(sofa, loungeX + 1.2, loungeZ - 0.2);
     group.add(sofa);
     const coffee = this.fit(this.model('table-coffee'), { footprint: 1.1 });
-    this.anchor(coffee, loungeX + 1.2, loungeZ + 0.1);
+    this.anchor(coffee, loungeX + 3.4, loungeZ - 0.2);
     group.add(coffee);
     const lamp = this.fit(this.model('lamp-floor'), { height: 1.9 });
-    this.anchor(lamp, loungeX + 2.6, loungeZ - 0.9);
+    this.anchor(lamp, loungeX + 4.6, loungeZ - 0.9);
     group.add(lamp);
 
     const shelf = this.fit(this.model('bookcase'), { height: 2.1 });
@@ -948,15 +952,16 @@ export class OfficeScene {
       const x = -2 + (slotIndex + 0.5) * SLOT_W;
       const z = slotIndex < slots ? parkZ : parkZ + 2.6;
       const model = CAR_MODELS[index % CAR_MODELS.length] ?? 'car-sedan';
-      const car = this.fit(this.model(model), { footprint: 1.9 });
+      const car = this.fit(this.model(model), { footprint: 3.4 });
+      const carSize = new THREE.Box3().setFromObject(car).getSize(new THREE.Vector3());
+      car.rotation.y = carSize.x > carSize.z ? Math.PI / 2 : 0;
       this.anchor(car, x, z);
-      car.rotation.y = Math.PI / 2;
       this.tintBody(car, CAR_COLORS[index % CAR_COLORS.length] ?? 0xffffff);
       site.add(car);
 
       const key = pickKey({ kind: 'vehicle', id: vehicle.id });
       const marker = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.1, 2.1),
+        new THREE.PlaneGeometry(2.0, 3.6),
         new THREE.MeshBasicMaterial({
           color: RESOURCE_COLOR[vehicle.state],
           transparent: true,
@@ -969,7 +974,7 @@ export class OfficeScene {
       this.markers.set(key, marker);
 
       const hit = new THREE.Mesh(
-        new THREE.BoxGeometry(2.3, 1.8, 2.3),
+        new THREE.BoxGeometry(2.2, 1.8, 3.8),
         new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
       );
       hit.position.set(x, 0.9, z);
@@ -1077,10 +1082,14 @@ export class OfficeScene {
     high: number,
   ): void {
     const wall = this.material(PALETTE.wallInner, 0.9);
-    group.add(this.wallX(x0, x0 + zw, z0, high, WALL_T, wall));
-    group.add(this.wallZ(x0, z0, z0 + zd, high, WALL_T, wall));
-    group.add(this.wallX(x0, x0 + zw, z0 + zd, WALL_LOW, WALL_T, wall));
-    group.add(this.wallZ(x0 + zw, z0, z0 + zd, WALL_LOW, WALL_T, wall));
+    const onNorth = z0 <= 0.01;
+    const onWest = x0 <= 0.01;
+    const onEast = x0 + zw >= this.buildingW - 0.01;
+    const onSouth = z0 + zd >= this.buildingH - 0.01;
+    if (!onNorth) group.add(this.wallX(x0, x0 + zw, z0, high, WALL_T, wall));
+    if (!onWest) group.add(this.wallZ(x0, z0, z0 + zd, high, WALL_T, wall));
+    if (!onSouth) group.add(this.wallX(x0, x0 + zw, z0 + zd, WALL_LOW, WALL_T, wall));
+    if (!onEast) group.add(this.wallZ(x0 + zw, z0, z0 + zd, WALL_LOW, WALL_T, wall));
   }
 
   private async loadModels(): Promise<void> {

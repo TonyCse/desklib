@@ -210,72 +210,16 @@ for (let i = 0; i < FIRST_NAMES.length; i++) {
 /** Deux étages distincts : plans, zones et postes différents. */
 function buildFloors() {
   const floor1Zones = [
-    {
-      name: 'Open space',
-      kind: 'openspace',
-      x: 40,
-      y: 40,
-      width: 530,
-      height: 480,
-    },
-    {
-      name: 'Cuisine',
-      kind: 'kitchen',
-      x: 600,
-      y: 40,
-      width: 360,
-      height: 160,
-    },
-    {
-      name: 'Salle Lumière',
-      kind: 'room',
-      x: 600,
-      y: 230,
-      width: 170,
-      height: 190,
-    },
-    {
-      name: 'Salle Horizon',
-      kind: 'room',
-      x: 790,
-      y: 230,
-      width: 170,
-      height: 190,
-    },
+    { name: 'Open space', kind: 'openspace', x: 40, y: 40, width: 530, height: 480 },
+    { name: 'Cuisine', kind: 'kitchen', x: 600, y: 0, width: 400, height: 170 },
+    { name: 'Salle Lumière', kind: 'room', x: 600, y: 170, width: 200, height: 210 },
+    { name: 'Salle Horizon', kind: 'room', x: 800, y: 170, width: 200, height: 210 },
   ];
   const floor2Zones = [
-    {
-      name: 'Open space',
-      kind: 'openspace',
-      x: 40,
-      y: 40,
-      width: 380,
-      height: 480,
-    },
-    {
-      name: 'Salle Atlas',
-      kind: 'room',
-      x: 450,
-      y: 40,
-      width: 250,
-      height: 210,
-    },
-    {
-      name: 'Salle Boréal',
-      kind: 'room',
-      x: 720,
-      y: 40,
-      width: 240,
-      height: 210,
-    },
-    {
-      name: 'Cuisine',
-      kind: 'kitchen',
-      x: 450,
-      y: 280,
-      width: 510,
-      height: 240,
-    },
+    { name: 'Open space', kind: 'openspace', x: 40, y: 40, width: 380, height: 480 },
+    { name: 'Salle Atlas', kind: 'room', x: 450, y: 40, width: 270, height: 230 },
+    { name: 'Salle Boréal', kind: 'room', x: 720, y: 40, width: 280, height: 230 },
+    { name: 'Cuisine', kind: 'kitchen', x: 450, y: 270, width: 550, height: 290 },
   ];
   // Étage 1 : deux rangées de dix postes.
   const floor1Desks = Array.from({ length: 20 }, (_, index) => {

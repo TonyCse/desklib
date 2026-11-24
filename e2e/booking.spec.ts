@@ -16,9 +16,9 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
   await page.getByRole('button', { name: 'Liste', exact: true }).click();
 
   // Les dates sont proposées en boutons ; on parcourt celles à venir jusqu'à une réservation réussie.
-  const datePills = page.getByRole('group', { name: 'Dates' }).getByRole('button');
-  await expect(datePills.first()).toBeVisible();
-  const optionCount = await datePills.count();
+  const dateSelect = page.getByLabel('Date', { exact: true });
+  await expect(dateSelect).toBeVisible();
+  const optionCount = await dateSelect.locator('option').count();
   let bookedLabel: string | null = null;
 
   for (let i = 1; i < Math.min(optionCount, 9) && bookedLabel === null; i++) {
@@ -26,7 +26,7 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
     await Promise.all([
       // Disponibilité de l'étage (et non celle des véhicules ou des salles, qui ont aussi « availability »).
       page.waitForResponse((r) => /\/api\/floors\/[^/]+\/availability/.test(r.url()) && r.ok()),
-      datePills.nth(i).click(),
+      dateSelect.selectOption({ index: i }),
     ]);
 
     // Attend que la liste des postes soit affichée (les données arrivent avec les véhicules et les salles).

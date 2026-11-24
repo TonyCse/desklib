@@ -27,11 +27,11 @@
       }
     } @else if (viewMode() === 'plan') {
     @if (detail(); as plan) {
-      <div class="absolute inset-0 overflow-auto bg-[#eef3f9] pb-32 pt-28 md:pt-56" aria-label="Plan de l’étage">
+      <div class="absolute inset-0 overflow-auto bg-[#eef3f9] pb-6 pt-40 md:pt-52" aria-label="Plan de l’étage">
         <div class="flex min-h-full min-w-full items-center justify-center p-10">
           <svg
             class="w-auto max-w-none drop-shadow-sm"
-            [style.height]="'calc((100dvh - 23rem) * ' + planZoom() + ')'"
+            [style.height]="'calc((100dvh - 20rem) * ' + planZoom() + ')'"
             [attr.viewBox]="'-24 -24 ' + (plan.width + 48) + ' ' + (plan.height + 48)"
             role="group"
             [attr.aria-label]="'Plan de ' + plan.name + ', ' + desks().length + ' postes'"
@@ -165,7 +165,7 @@
         </div>
       </div>
 
-      <div class="absolute bottom-40 left-4 z-10 flex flex-col gap-2" role="group" aria-label="Zoom du plan">
+      <div class="absolute bottom-6 left-4 z-10 flex flex-col gap-2" role="group" aria-label="Zoom du plan">
         <button type="button" class="h-9 w-9 rounded-xl border border-white/70 bg-white/85 text-lg font-semibold shadow-pop backdrop-blur-md hover:bg-white" aria-label="Zoomer le plan" (click)="zoomPlan(1.25)">+</button>
         <button type="button" class="h-9 w-9 rounded-xl border border-white/70 bg-white/85 text-lg font-semibold shadow-pop backdrop-blur-md hover:bg-white" aria-label="Dézoomer le plan" (click)="zoomPlan(0.8)">−</button>
         <button type="button" class="rounded-xl border border-white/70 bg-white/85 px-2 py-1.5 text-xs font-medium shadow-pop backdrop-blur-md hover:bg-white" (click)="resetPlan()">Ajuster</button>
@@ -173,7 +173,7 @@
     }
   } @else {
       <!-- Vue liste : alternative accessible, dans un panneau flottant -->
-      <div class="absolute inset-x-4 bottom-40 top-28 flex flex-col gap-3 overflow-auto rounded-2xl border border-white/70 bg-white/90 p-4 shadow-pop backdrop-blur-md">
+      <div class="absolute inset-x-4 bottom-6 top-40 flex flex-col gap-3 overflow-auto rounded-2xl border border-white/70 bg-white/90 p-4 shadow-pop backdrop-blur-md">
         <fieldset class="flex flex-wrap items-center gap-3">
           <legend class="sr-only">Filtres</legend>
           <label class="flex items-center gap-2 text-sm font-medium">
@@ -312,7 +312,7 @@
 
   <!-- Détail du poste sélectionné (panneau droit) -->
   @if (selectedDesk(); as desk) {
-    <aside class="absolute right-4 top-28 z-10 max-h-[calc(100%-13rem)] w-80 overflow-auto" aria-label="Détail du poste">
+    <aside class="absolute right-4 top-40 z-10 max-h-[calc(100%-11rem)] w-80 overflow-auto" aria-label="Détail du poste">
       <app-desk-popover
         [desk]="desk"
         [dateLabel]="dateLabel()"
@@ -326,7 +326,7 @@
 
   <!-- Détail d'un véhicule ou d'une salle sélectionné(e) dans la scène 3D -->
   @if (selectedVehicle(); as vehicle) {
-    <aside class="absolute right-4 top-28 z-10 max-h-[calc(100%-13rem)] w-80 overflow-auto" aria-label="Détail du véhicule">
+    <aside class="absolute right-4 top-40 z-10 max-h-[calc(100%-11rem)] w-80 overflow-auto" aria-label="Détail du véhicule">
       <app-resource-panel
         kind="Véhicule de fonction"
         [title]="vehicle.name"
@@ -339,7 +339,7 @@
       />
     </aside>
   } @else if (selectedRoom(); as room) {
-    <aside class="absolute right-4 top-28 z-10 max-h-[calc(100%-13rem)] w-80 overflow-auto" aria-label="Détail de la salle">
+    <aside class="absolute right-4 top-40 z-10 max-h-[calc(100%-11rem)] w-80 overflow-auto" aria-label="Détail de la salle">
       <app-resource-panel
         kind="Salle de réunion"
         [title]="room.name"
@@ -353,86 +353,78 @@
     </aside>
   }
 
-  <!-- Barre inférieure flottante : dates, légende, étage, mode d'affichage -->
-  <footer
-    class="absolute inset-x-4 bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-white/70 bg-white/85 p-3 shadow-pop backdrop-blur-md"
-  >
-    <div role="group" aria-label="Dates" class="flex gap-1.5 overflow-x-auto pb-0.5">
+  <!-- Barre d'outils : date, étage et mode d'affichage, sous la barre de navigation, à droite -->
+  <div class="absolute right-4 top-24 z-20 flex flex-wrap items-center justify-end gap-2" aria-label="Affichage">
+    <label class="sr-only" for="date-select">Date</label>
+    <select
+      id="date-select"
+      #dateSelect
+      class="field w-auto rounded-xl bg-white/90 shadow-pop backdrop-blur-md"
+      [value]="date() ?? ''"
+      (change)="selectDate(dateSelect.value)"
+    >
       @for (option of dateOptions(); track option) {
-        <button
-          type="button"
-          class="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium"
-          [class.bg-accent]="option === date()"
-          [class.text-white]="option === date()"
-          [class.text-ink-muted]="option !== date()"
-          [class.hover:bg-canvas]="option !== date()"
-          [attr.aria-pressed]="option === date()"
-          [attr.aria-label]="dayLabel(option)"
-          (click)="selectDate(option)"
-        >
-          {{ shortDayLabel(option) }}
-        </button>
+        <option [value]="option">{{ dayLabel(option) }}</option>
       }
+    </select>
+
+    <label class="sr-only" for="floor-select" [class.hidden]="viewMode() === '3d'">Étage</label>
+    <select
+      id="floor-select"
+      #floorSelect
+      class="field w-auto rounded-xl bg-white/90 shadow-pop backdrop-blur-md"
+      [class.hidden]="viewMode() === '3d'"
+      [value]="floorId() ?? ''"
+      (change)="selectFloor(floorSelect.value)"
+    >
+      @for (floor of floors(); track floor.id) {
+        <option [value]="floor.id">{{ floor.name }}</option>
+      }
+    </select>
+
+    <div class="flex rounded-xl border border-white/70 bg-white/90 p-0.5 shadow-pop backdrop-blur-md" role="group" aria-label="Mode d’affichage">
+      <button
+        type="button"
+        class="rounded-lg px-3 py-1.5 text-sm font-medium"
+        [class.bg-accent]="viewMode() === 'plan'"
+        [class.text-white]="viewMode() === 'plan'"
+        [attr.aria-pressed]="viewMode() === 'plan'"
+        (click)="setView('plan')"
+      >
+        Plan
+      </button>
+      <button
+        type="button"
+        class="rounded-lg px-3 py-1.5 text-sm font-medium"
+        [class.bg-accent]="viewMode() === '3d'"
+        [class.text-white]="viewMode() === '3d'"
+        [attr.aria-pressed]="viewMode() === '3d'"
+        (click)="setView('3d')"
+      >
+        Vue 3D
+      </button>
+      <button
+        type="button"
+        class="rounded-lg px-3 py-1.5 text-sm font-medium"
+        [class.bg-accent]="viewMode() === 'list'"
+        [class.text-white]="viewMode() === 'list'"
+        [attr.aria-pressed]="viewMode() === 'list'"
+        (click)="setView('list')"
+      >
+        Liste
+      </button>
     </div>
+  </div>
 
-    <div class="flex flex-wrap items-center gap-3">
-      <ul class="hidden flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted lg:flex" aria-label="Légende des postes">
-        @for (key of stateKeys; track key) {
-          <li class="flex items-center gap-1.5">
-            <span aria-hidden="true" class="font-bold text-ink">{{ DESK_STATE_META[key].symbol }}</span>
-            {{ DESK_STATE_META[key].label }}
-          </li>
-        }
-      </ul>
-
-      <div class="ml-auto flex flex-wrap items-center gap-2">
-        <label class="sr-only" for="floor-select" [class.hidden]="viewMode() === '3d'">Étage</label>
-        <select
-          id="floor-select"
-          [class.hidden]="viewMode() === '3d'"
-          #floorSelect
-          class="field w-auto"
-          [value]="floorId() ?? ''"
-          (change)="selectFloor(floorSelect.value)"
-        >
-          @for (floor of floors(); track floor.id) {
-            <option [value]="floor.id">{{ floor.name }}</option>
-          }
-        </select>
-
-        <div class="flex rounded-lg border border-line-strong bg-surface p-0.5" role="group" aria-label="Mode d’affichage">
-          <button
-            type="button"
-            class="rounded-md px-3 py-1.5 text-sm font-medium"
-            [class.bg-accent]="viewMode() === 'plan'"
-            [class.text-white]="viewMode() === 'plan'"
-            [attr.aria-pressed]="viewMode() === 'plan'"
-            (click)="setView('plan')"
-          >
-            Plan
-          </button>
-          <button
-            type="button"
-            class="rounded-md px-3 py-1.5 text-sm font-medium"
-            [class.bg-accent]="viewMode() === '3d'"
-            [class.text-white]="viewMode() === '3d'"
-            [attr.aria-pressed]="viewMode() === '3d'"
-            (click)="setView('3d')"
-          >
-            Vue 3D
-          </button>
-          <button
-            type="button"
-            class="rounded-md px-3 py-1.5 text-sm font-medium"
-            [class.bg-accent]="viewMode() === 'list'"
-            [class.text-white]="viewMode() === 'list'"
-            [attr.aria-pressed]="viewMode() === 'list'"
-            (click)="setView('list')"
-          >
-            Liste
-          </button>
-        </div>
-      </div>
-    </div>
-  </footer>
+  <!-- Légende des états, sous les indicateurs -->
+  @if (!loadError() && availability() && viewMode() === 'plan') {
+    <ul class="absolute left-4 top-52 z-10 hidden flex-wrap gap-x-4 gap-y-1 rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-xs text-ink-muted shadow-pop backdrop-blur-md md:flex" aria-label="Légende des postes">
+      @for (key of stateKeys; track key) {
+        <li class="flex items-center gap-1.5">
+          <span aria-hidden="true" class="font-bold text-ink">{{ DESK_STATE_META[key].symbol }}</span>
+          {{ DESK_STATE_META[key].label }}
+        </li>
+      }
+    </ul>
+  }
 </section>

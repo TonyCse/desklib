@@ -50,7 +50,7 @@ import type { OfficeScene, SceneDesk, SceneRoom, SceneVehicle, ScenePick } from 
 
       @if (status() === 'ready') {
         <div
-          class="absolute bottom-40 left-4 z-10 flex flex-col gap-2"
+          class="absolute bottom-6 left-4 z-10 flex flex-col gap-2"
           role="group"
           aria-label="Contrôles de la vue 3D"
         >
