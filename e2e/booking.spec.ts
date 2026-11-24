@@ -18,6 +18,8 @@ test('je me connecte, je réserve un poste, je le retrouve et je l’annule', as
   // Les dates sont proposées en boutons ; on parcourt celles à venir jusqu'à une réservation réussie.
   const dateSelect = page.getByLabel('Date', { exact: true });
   await expect(dateSelect).toBeVisible();
+  // Le sélecteur ne contient qu'une option vide tant que la page n'a pas chargé : on attend les vraies dates.
+  await expect.poll(() => dateSelect.locator('option').count()).toBeGreaterThan(1);
   const optionCount = await dateSelect.locator('option').count();
   let bookedLabel: string | null = null;
 
