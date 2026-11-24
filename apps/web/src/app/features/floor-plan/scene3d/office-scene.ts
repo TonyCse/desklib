@@ -57,7 +57,7 @@ const PALETTE = {
 const WALL_HIGH = 2.6;
 const WALL_LOW = 0.45;
 const WALL_T = 0.14;
-const SITE_MARGIN = 14;
+const SITE_MARGIN = 2;
 const SLOT_W = 2.2;
 
 export interface SceneDesk {
@@ -524,21 +524,20 @@ export class OfficeScene {
     this.hitboxes = this.collectHitboxes(incoming);
     this.frameCamera(detail);
 
-    this.addTween(TRANSITION_MS, (t) => {
-      incoming.position.y = FLOOR_GAP * (1 - t);
-    });
-    if (previous) {
-      this.addTween(
-        TRANSITION_MS,
-        (t) => {
-          previous.position.y = -FLOOR_GAP * t;
-        },
-        () => {
+    // L'étage précédent reste en place ; le nouveau descend et se pose dessus (accélération puis atterrissage doux).
+    this.addTween(
+      TRANSITION_MS,
+      (t) => {
+        incoming.position.y = FLOOR_GAP * (1 - t) * (1 - t);
+      },
+      () => {
+        incoming.position.y = 0;
+        if (previous) {
           this.scene.remove(previous);
           this.disposeGroup(previous);
-        },
-      );
-    }
+        }
+      },
+    );
   }
 
   private buildFloor(
@@ -699,7 +698,7 @@ export class OfficeScene {
       const a = (i / 4) * Math.PI * 2;
       const chair = this.fit(this.model('chair-modern'), { height: 0.95 });
       this.anchor(chair, cx + Math.cos(a) * radius, cz + Math.sin(a) * radius);
-      chair.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a));
+      chair.rotation.y = Math.atan2(Math.cos(a), Math.sin(a));
       group.add(chair);
     }
     const plant = this.fit(this.model('plant'), { height: 1.3 });
@@ -806,7 +805,6 @@ export class OfficeScene {
 
     const corners: [number, number, number][] = [
       [x0 + 0.4, z0 + 0.4, 1.5],
-      [x0 + zw - 0.4, z0 + 0.4, 1.7],
       [x0 + 0.4, z0 + zd - 0.4, 1.6],
       [x0 + zw - 0.4, z0 + zd - 0.4, 1.5],
     ];
@@ -816,19 +814,20 @@ export class OfficeScene {
       group.add(plant);
     }
 
+    // Coin détente le long du mur Sud : canapé dos au mur (face -Z), table basse devant, tapis dessous.
     const loungeX = x0 + 6.0;
-    const loungeZ = z0 + zd - 1.1;
-    const rug = this.fit(this.model('rug'), { footprint: 2.8 });
-    this.anchor(rug, loungeX + 2.0, loungeZ);
+    const sofaZ = z0 + zd - 0.9;
+    const rug = this.fit(this.model('rug'), { footprint: 3.4 });
+    this.anchor(rug, loungeX + 1.6, sofaZ - 0.9);
     group.add(rug);
     const sofa = this.fit(this.model('sofa'), { footprint: 2.2 });
-    this.anchor(sofa, loungeX + 1.2, loungeZ - 0.2);
+    this.anchor(sofa, loungeX + 1.6, sofaZ);
     group.add(sofa);
     const coffee = this.fit(this.model('table-coffee'), { footprint: 1.1 });
-    this.anchor(coffee, loungeX + 3.4, loungeZ - 0.2);
+    this.anchor(coffee, loungeX + 1.6, sofaZ - 1.5);
     group.add(coffee);
     const lamp = this.fit(this.model('lamp-floor'), { height: 1.9 });
-    this.anchor(lamp, loungeX + 4.6, loungeZ - 0.9);
+    this.anchor(lamp, loungeX + 3.2, sofaZ - 0.1);
     group.add(lamp);
 
     const shelf = this.fit(this.model('bookcase'), { height: 2.1 });
@@ -839,18 +838,13 @@ export class OfficeScene {
     this.anchor(plantW, x0 + 0.5, z0 + zd * 0.2);
     group.add(plantW);
 
+    // Porte-manteau dans le coin Nord-Est, poubelle contre le mur Est à côté.
     const coat = this.fit(this.model('coat-rack'), { height: 1.8 });
-    this.anchor(coat, x0 + zw - 0.5, z0 + zd * 0.5);
+    this.anchor(coat, x0 + zw - 0.4, z0 + 0.4);
     group.add(coat);
     const bin = this.fit(this.model('trashcan'), { height: 0.6 });
-    this.anchor(bin, x0 + zw - 0.8, z0 + zd * 0.68);
+    this.anchor(bin, x0 + zw - 0.5, z0 + 1.4);
     group.add(bin);
-
-    for (const px of [0.25, 0.5, 0.75]) {
-      const p = this.fit(this.model('plant-small'), { height: 0.95 });
-      this.anchor(p, x0 + zw * px, z0 + zd * 0.5);
-      group.add(p);
-    }
   }
 
   /** Poste : bureau bleuté, écran posé sur le plateau, chaise côté utilisateur (face au poste). */
@@ -922,35 +916,29 @@ export class OfficeScene {
     const left = -SITE_MARGIN;
     const right = w + SITE_MARGIN;
 
+    const siteEnd = d + 7.6 + 2.7 + SITE_MARGIN;
     site.add(
-      this.plane(
-        right - left,
-        d + SITE_MARGIN * 2,
-        PALETTE.ground,
-        (left + right) / 2,
-        -0.02,
-        d / 2,
-      ),
+      this.plane(right - left, siteEnd + SITE_MARGIN, PALETTE.ground, (left + right) / 2, -0.02, (siteEnd - SITE_MARGIN) / 2),
     );
 
-    // Parking devant le bâtiment (côté Sud, face à la caméra).
+    // Parking devant le bâtiment (côté Sud) : les places couvrent exactement la façade.
     const parkZ0 = d + 1.2;
     const parkZ1 = d + 7.6;
     const parkZ = (parkZ0 + parkZ1) / 2;
-    site.add(this.plane(w + 6, parkZ1 - parkZ0, PALETTE.asphalt, w / 2, 0.003, parkZ));
+    site.add(this.plane(w, parkZ1 - parkZ0, PALETTE.asphalt, w / 2, 0.003, parkZ));
 
-    const slots = Math.floor((w + 4) / SLOT_W);
+    const slots = Math.max(2, Math.round(w / SLOT_W));
+    const slotW = w / slots;
     const paint = this.material(PALETTE.paint, 0.7);
     for (let i = 0; i <= slots; i++) {
-      const x = -2 + i * SLOT_W;
-      site.add(this.box(0.05, 0.01, parkZ1 - parkZ0 - 0.6, paint, x, 0.01, parkZ));
+      site.add(this.box(0.05, 0.01, parkZ1 - parkZ0 - 0.6, paint, i * slotW, 0.01, parkZ));
     }
 
     // Un véhicule de fonction par place réservable : on n'affiche que la flotte réelle.
     vehicles.forEach((vehicle, index) => {
-      const slotIndex = index * 2 + 1;
-      const x = -2 + (slotIndex + 0.5) * SLOT_W;
-      const z = slotIndex < slots ? parkZ : parkZ + 2.6;
+      const slotIndex = (index * 2 + 1) % slots;
+      const x = (slotIndex + 0.5) * slotW;
+      const z = parkZ;
       const model = CAR_MODELS[index % CAR_MODELS.length] ?? 'car-sedan';
       const car = this.fit(this.model(model), { footprint: 3.4 });
       const carSize = new THREE.Box3().setFromObject(car).getSize(new THREE.Vector3());
@@ -983,18 +971,18 @@ export class OfficeScene {
       this.siteHitboxes.push(hit);
     });
 
-    site.add(this.plane(w + 6, 2.6, PALETTE.curb, w / 2, 0.004, parkZ1 + 1.4));
-    site.add(this.plane(w + 6, 0.1, PALETTE.paint, w / 2, 0.006, parkZ1 + 0.1));
+    site.add(this.plane(w, 2.6, PALETTE.curb, w / 2, 0.004, parkZ1 + 1.4));
+    site.add(this.plane(w, 0.1, PALETTE.paint, w / 2, 0.006, parkZ1 + 0.1));
 
     const trees: [ModelName, number, number, number][] = [
       ['tree-oak', left + 1.5, 2, 3.6],
       ['tree-default', left + 1.2, d * 0.5, 3.2],
       ['tree-pine', left + 1.6, d - 1.5, 4.2],
-      ['tree-simple', w * 0.3, -2.4, 3.0],
-      ['tree-fat', w * 0.75, -2.8, 3.4],
+      ['tree-simple', w * 0.3, -1.2, 3.0],
+      ['tree-fat', w * 0.75, -1.4, 3.4],
       ['tree-oak', right - 1.6, d * 0.6, 3.6],
       ['tree-default', right - 1.4, parkZ1 + 2.2, 3.2],
-      ['tree-pine', w * 0.18, parkZ1 + 3.4, 3.8],
+      ['tree-pine', w * 0.18, parkZ1 + 3.1, 3.8],
     ];
     for (const [name, x, z, h] of trees) {
       const tree = this.fit(this.model(name), { height: h });
