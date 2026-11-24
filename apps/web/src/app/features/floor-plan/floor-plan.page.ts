@@ -425,17 +425,6 @@ export class FloorPlanPage {
     this.zoneFilter.set(value);
   }
 
-  /** Zoom du plan (1 = taille de la fenêtre). */
-  protected readonly planZoom = signal(1);
-
-  protected zoomPlan(factor: number): void {
-    this.planZoom.update((z) => Math.min(3, Math.max(0.6, z * factor)));
-  }
-
-  protected resetPlan(): void {
-    this.planZoom.set(1);
-  }
-
   protected retry(): void {
     this.refreshVersion.update((v) => v + 1);
   }

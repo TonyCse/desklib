@@ -6,46 +6,25 @@
     Aller au contenu
   </a>
 
-  <aside
-    class="hidden w-60 shrink-0 flex-col border-r border-line bg-surface md:flex"
-    [class.md:hidden]="immersive()"
-    aria-label="Navigation principale"
-  >
-    <div class="flex items-center gap-2 px-5 py-5">
-      <span aria-hidden="true" class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">D</span>
-      <div>
-        <p class="text-base font-semibold leading-tight">Desk’lib</p>
-        <p class="text-xs text-ink-subtle">Meridia</p>
-      </div>
-    </div>
-
-    <nav class="flex flex-col gap-1 px-3">
-      @for (item of navItems(); track item.path) {
-        <a
-          [routerLink]="item.path"
-          routerLinkActive="bg-accent-soft text-accent-ink"
-          [routerLinkActiveOptions]="{ exact: false }"
-          #rla="routerLinkActive"
-          class="rounded-lg px-3 py-2 text-sm font-medium text-ink-muted hover:bg-canvas hover:text-ink"
-          [attr.aria-current]="rla.isActive ? 'page' : null"
-        >
-          {{ item.label }}
-        </a>
-      }
-    </nav>
-  </aside>
-
   <div class="flex min-w-0 flex-1 flex-col">
     <header
-      class="flex items-center justify-between gap-4 border-b border-line bg-surface px-4 py-3 md:px-8"
+      class="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line bg-surface px-4 py-3 md:px-8"
       [class.hidden]="immersive()"
     >
-      <nav class="flex gap-2 overflow-x-auto md:hidden" aria-label="Navigation principale mobile">
+      <a routerLink="/plan" class="flex shrink-0 items-center gap-2.5">
+        <span aria-hidden="true" class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">D</span>
+        <span class="text-base font-semibold leading-tight">Desk’lib</span>
+      </a>
+
+      <nav class="flex min-w-0 gap-1 overflow-x-auto" aria-label="Navigation principale">
         @for (item of navItems(); track item.path) {
           <a
             [routerLink]="item.path"
             routerLinkActive="bg-accent-soft text-accent-ink"
-            class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-ink-muted"
+            [routerLinkActiveOptions]="{ exact: false }"
+            #rla="routerLinkActive"
+            class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-ink-muted hover:bg-canvas hover:text-ink"
+            [attr.aria-current]="rla.isActive ? 'page' : null"
           >
             {{ item.label }}
           </a>

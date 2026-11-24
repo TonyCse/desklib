@@ -31,7 +31,7 @@
         <div class="flex min-h-full min-w-full items-center justify-center p-10">
           <svg
             class="w-auto max-w-none drop-shadow-sm"
-            [style.height]="'calc((100dvh - 20rem) * ' + planZoom() + ')'"
+            [style.height]="'calc(100dvh - 20rem)'"
             [attr.viewBox]="'-24 -24 ' + (plan.width + 48) + ' ' + (plan.height + 48)"
             role="group"
             [attr.aria-label]="'Plan de ' + plan.name + ', ' + desks().length + ' postes'"
@@ -165,11 +165,6 @@
         </div>
       </div>
 
-      <div class="absolute bottom-6 left-4 z-10 flex flex-col gap-2" role="group" aria-label="Zoom du plan">
-        <button type="button" class="h-9 w-9 rounded-xl border border-white/70 bg-white/85 text-lg font-semibold shadow-pop backdrop-blur-md hover:bg-white" aria-label="Zoomer le plan" (click)="zoomPlan(1.25)">+</button>
-        <button type="button" class="h-9 w-9 rounded-xl border border-white/70 bg-white/85 text-lg font-semibold shadow-pop backdrop-blur-md hover:bg-white" aria-label="Dézoomer le plan" (click)="zoomPlan(0.8)">−</button>
-        <button type="button" class="rounded-xl border border-white/70 bg-white/85 px-2 py-1.5 text-xs font-medium shadow-pop backdrop-blur-md hover:bg-white" (click)="resetPlan()">Ajuster</button>
-      </div>
     }
   } @else {
       <!-- Vue liste : alternative accessible, dans un panneau flottant -->
@@ -416,9 +411,9 @@
     </div>
   </div>
 
-  <!-- Légende des états, sous les indicateurs -->
+  <!-- Légende des états, en bas à gauche -->
   @if (!loadError() && availability() && viewMode() === 'plan') {
-    <ul class="absolute left-4 top-52 z-10 hidden flex-wrap gap-x-4 gap-y-1 rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-xs text-ink-muted shadow-pop backdrop-blur-md md:flex" aria-label="Légende des postes">
+    <ul class="absolute bottom-6 left-4 z-10 hidden flex-wrap gap-x-4 gap-y-1 rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-xs text-ink-muted shadow-pop backdrop-blur-md md:flex" aria-label="Légende des postes">
       @for (key of stateKeys; track key) {
         <li class="flex items-center gap-1.5">
           <span aria-hidden="true" class="font-bold text-ink">{{ DESK_STATE_META[key].symbol }}</span>
