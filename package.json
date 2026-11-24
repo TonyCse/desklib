@@ -14,7 +14,7 @@
     "dev": "npm run build -w @desklib/shared && concurrently -n api,web -c blue,magenta \"npm run dev -w @desklib/api\" \"npm run start -w @desklib/web\"",
     "build": "npm run build -w @desklib/shared && npm run build -w @desklib/api && npm run build -w @desklib/web",
     "test": "npm run build -w @desklib/shared && npm run test -w @desklib/api && npm run test -w @desklib/web",
-    "lint": "eslint .",
+    "lint": "npm run build -w @desklib/shared && eslint .",
     "format": "prettier --write .",
     "db:up": "docker compose up -d",
     "db:migrate": "npm run migrate -w @desklib/api",
