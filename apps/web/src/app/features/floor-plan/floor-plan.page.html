@@ -20,6 +20,9 @@
           [vehicles]="sceneVehicles()"
           [rooms]="sceneRooms()"
           (picked)="onScenePick($event)"
+          [floors]="floors()"
+          [floorId]="floorId() ?? ''"
+          (floorChange)="selectFloor($event)"
         />
       }
     } @else if (viewMode() === 'plan') {
@@ -383,9 +386,10 @@
       </ul>
 
       <div class="ml-auto flex flex-wrap items-center gap-2">
-        <label class="sr-only" for="floor-select">Étage</label>
+        <label class="sr-only" for="floor-select" [class.hidden]="viewMode() === '3d'">Étage</label>
         <select
           id="floor-select"
+          [class.hidden]="viewMode() === '3d'"
           #floorSelect
           class="field w-auto"
           [value]="floorId() ?? ''"

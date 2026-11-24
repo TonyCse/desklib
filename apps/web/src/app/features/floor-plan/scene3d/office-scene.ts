@@ -608,7 +608,7 @@ export class OfficeScene {
 
     // Salles réservables : repère de disponibilité sur la zone, zone cliquable.
     for (const room of rooms) {
-      const zone = detail.zones.find((z) => z.kind === 'room' && z.name === room.zoneName);
+      const zone = detail.zones.find((z) => z.name === room.zoneName);
       if (!zone) continue;
       this.addRoomMarker(group, room, zone);
     }
@@ -684,15 +684,15 @@ export class OfficeScene {
 
     group.add(this.box(zw * 0.5, 0.9, 0.05, this.material(0x1e293b, 0.4), cx, 1.5, z0 + 0.12));
 
-    const table = this.fit(this.model('table-round'), { footprint: Math.min(zw, zd) * 0.62 });
+    const table = this.fit(this.model('table-round'), { footprint: Math.min(zw, zd) * 0.5 });
     this.anchor(table, cx, cz);
     group.add(table);
     const rug = this.fit(this.model('rug'), { footprint: Math.min(zw, zd) * 0.95 });
     this.anchor(rug, cx, cz);
     group.add(rug);
-    const radius = Math.min(zw, zd) * 0.34;
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
+    const radius = Math.min(zw, zd) * 0.3;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
       const chair = this.fit(this.model('chair-modern'), { height: 0.95 });
       this.anchor(chair, cx + Math.cos(a) * radius, cz + Math.sin(a) * radius);
       chair.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a));

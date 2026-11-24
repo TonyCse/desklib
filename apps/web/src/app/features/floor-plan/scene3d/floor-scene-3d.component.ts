@@ -9,20 +9,14 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import type { FloorDetail } from '../../../core/models';
+import type { FloorDetail, FloorSummary } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/ui/feedback.components';
-import type {
-  OfficeScene,
-  SceneDesk,
-  SceneRoom,
-  SceneVehicle,
-  ScenePick,
-  SceneView,
-} from './office-scene';
+import type { OfficeScene, SceneDesk, SceneRoom, SceneVehicle, ScenePick } from './office-scene';
 
 /**
  * Vue 3D de l'étage. Three.js est chargé à la demande (import dynamique). Glisser fait tourner la scène,
  * la molette zoome, et un clic (sans glisser) sur un poste, un véhicule ou une salle l'émet.
+ * Le choix d'étage et la bascule « Vue du dessus » sont dans les contrôles de la scène.
  */
 @Component({
   selector: 'app-floor-scene-3d',
@@ -60,19 +54,24 @@ import type {
           role="group"
           aria-label="Contrôles de la vue 3D"
         >
+          <select
+            #floorSelect
+            class="rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-sm font-medium shadow-pop backdrop-blur-md hover:bg-white"
+            aria-label="Étage"
+            [value]="floorId()"
+            (change)="floorChange.emit(floorSelect.value)"
+          >
+            @for (floor of floors(); track floor.id) {
+              <option [value]="floor.id">{{ floor.name }}</option>
+            }
+          </select>
           <button
             type="button"
             class="rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-sm font-medium shadow-pop backdrop-blur-md hover:bg-white"
-            (click)="setView('iso')"
+            [attr.aria-pressed]="topView()"
+            (click)="toggleTopView()"
           >
-            Vue 3/4
-          </button>
-          <button
-            type="button"
-            class="rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-sm font-medium shadow-pop backdrop-blur-md hover:bg-white"
-            (click)="setView('top')"
-          >
-            Vue du dessus
+            {{ topView() ? 'Vue 3D' : 'Vue du dessus' }}
           </button>
           <div class="flex gap-2">
             <button
@@ -119,13 +118,18 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
   readonly desks = input.required<readonly SceneDesk[]>();
   readonly vehicles = input<readonly SceneVehicle[]>([]);
   readonly rooms = input<readonly SceneRoom[]>([]);
+  readonly floors = input<readonly FloorSummary[]>([]);
+  readonly floorId = input('');
   /** Élément choisi (clic sans glisser). */
   readonly picked = output<ScenePick>();
+  /** Étage choisi dans les contrôles de la scène. */
+  readonly floorChange = output<string>();
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
 
   protected readonly status = signal<'loading' | 'ready' | 'error'>('loading');
+  protected readonly topView = signal(false);
 
   private scene: OfficeScene | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -139,7 +143,11 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
       const desks = this.desks();
       const vehicles = this.vehicles();
       const rooms = this.rooms();
-      untracked(() => this.scene?.update(detail, desks, vehicles, rooms));
+      untracked(() => {
+        this.scene?.update(detail, desks, vehicles, rooms);
+        // Un nouvel étage repart de la vue 3/4 par défaut.
+        this.topView.set(false);
+      });
     });
   }
 
@@ -153,8 +161,9 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
     this.scene?.dispose();
   }
 
-  protected setView(view: SceneView): void {
-    this.scene?.setView(view);
+  protected toggleTopView(): void {
+    this.topView.update((v) => !v);
+    this.scene?.setView(this.topView() ? 'top' : 'iso');
   }
 
   protected zoom(factor: number): void {

@@ -35,9 +35,8 @@ test('captures des écrans principaux', async ({ page }) => {
   await page.screenshot({ path: path.join(OUT, 'plan-vue-dessus.png') });
 
   // Changement d'étage : capture pendant la transition animée.
-  await page.getByRole('button', { name: 'Vue 3/4', exact: true }).click();
   await page.waitForTimeout(800);
-  await page.locator('#floor-select').selectOption({ index: 1 });
+  await page.locator('select[aria-label="Étage"]').first().selectOption({ index: 1 });
   await page.waitForTimeout(350);
   await page.screenshot({ path: path.join(OUT, 'plan-transition-etage.png') });
   await page.waitForTimeout(1500);

@@ -24,7 +24,6 @@ import {
   parseIsoDate,
 } from '../src/bookings/domain/booking-rules.js';
 
-
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env['DATABASE_URL'] }),
 });
@@ -208,69 +207,120 @@ for (let i = 0; i < FIRST_NAMES.length; i++) {
   });
 }
 
-/** Postes : 2 étages, 2 rangées de 10 postes par étage (A01–A20 et B01–B20). */
+/** Deux étages distincts : plans, zones et postes différents. */
 function buildFloors() {
-  const floors = [
-    { name: 'Étage 1', prefix: 'A' },
-    { name: 'Étage 2', prefix: 'B' },
+  const floor1Zones = [
+    {
+      name: 'Open space',
+      kind: 'openspace',
+      x: 40,
+      y: 40,
+      width: 530,
+      height: 480,
+    },
+    {
+      name: 'Cuisine',
+      kind: 'kitchen',
+      x: 600,
+      y: 40,
+      width: 360,
+      height: 160,
+    },
+    {
+      name: 'Salle Lumière',
+      kind: 'room',
+      x: 600,
+      y: 230,
+      width: 170,
+      height: 190,
+    },
+    {
+      name: 'Salle Horizon',
+      kind: 'room',
+      x: 790,
+      y: 230,
+      width: 170,
+      height: 190,
+    },
   ];
-  return floors.map((floor) => {
-    const desks = Array.from({ length: 20 }, (_, index) => {
-      const row = Math.floor(index / 10);
-      const col = index % 10;
-      return {
-        label: `${floor.prefix}${String(index + 1).padStart(2, '0')}`,
-        x: 60 + col * 58,
-        y: row === 0 ? 120 : 320,
-        width: 46,
-        height: 50,
-        features: [
-          pick(FEATURES),
-          ...(rng() > 0.5 ? [pick(FEATURES)] : []),
-        ].filter((f, i, arr) => arr.indexOf(f) === i),
-      };
-    });
+  const floor2Zones = [
+    {
+      name: 'Open space',
+      kind: 'openspace',
+      x: 40,
+      y: 40,
+      width: 380,
+      height: 480,
+    },
+    {
+      name: 'Salle Atlas',
+      kind: 'room',
+      x: 450,
+      y: 40,
+      width: 250,
+      height: 210,
+    },
+    {
+      name: 'Salle Boréal',
+      kind: 'room',
+      x: 720,
+      y: 40,
+      width: 240,
+      height: 210,
+    },
+    {
+      name: 'Cuisine',
+      kind: 'kitchen',
+      x: 450,
+      y: 280,
+      width: 510,
+      height: 240,
+    },
+  ];
+  // Étage 1 : deux rangées de dix postes.
+  const floor1Desks = Array.from({ length: 20 }, (_, index) => {
+    const row = Math.floor(index / 10);
+    const col = index % 10;
     return {
-      name: floor.name,
-      width: 1000,
-      height: 560,
-      zones: [
-        {
-          name: 'Open space',
-          kind: 'openspace',
-          x: 40,
-          y: 40,
-          width: 640,
-          height: 480,
-        },
-        {
-          name: 'Cuisine',
-          kind: 'kitchen',
-          x: 700,
-          y: 40,
-          width: 260,
-          height: 160,
-        },
-        {
-          name: 'Salle Lumière',
-          kind: 'room',
-          x: 700,
-          y: 230,
-          width: 120,
-          height: 150,
-        },
-        {
-          name: 'Salle Horizon',
-          kind: 'room',
-          x: 840,
-          y: 230,
-          width: 120,
-          height: 150,
-        },
-      ],
-      desks,
+      label: `A${String(index + 1).padStart(2, '0')}`,
+      x: 60 + col * 48,
+      y: row === 0 ? 120 : 320,
+      width: 40,
+      height: 50,
+      features: [pick(FEATURES)],
     };
   });
+  // Étage 2 : quatre îlots de cinq postes, disposés en grille.
+  const floor2Desks = Array.from({ length: 20 }, (_, index) => {
+    const row = Math.floor(index / 5);
+    const col = index % 5;
+    return {
+      label: `B${String(index + 1).padStart(2, '0')}`,
+      x: 60 + col * 72,
+      y: 110 + row * 95,
+      width: 42,
+      height: 50,
+      features: [pick(FEATURES), pick(FEATURES)].filter(
+        (f, i, arr) => arr.indexOf(f) === i,
+      ),
+    };
+  });
+  return [
+    {
+      name: 'Étage 1',
+      width: 1000,
+      height: 560,
+      zones: floor1Zones,
+      desks: floor1Desks,
+    },
+    {
+      name: 'Étage 2',
+      width: 1000,
+      height: 560,
+      zones: floor2Zones,
+      desks: floor2Desks,
+    },
+  ];
 }
 
 async function main(): Promise<void> {
@@ -463,16 +513,21 @@ async function main(): Promise<void> {
     `Réservations : ${bookingCount} actives, ${cancelledCount} annulées (historique).`,
   );
   // Salles de réunion réservables : une salle par zone « salle » de chaque étage.
-  const floorsWithZones = await prisma.floor.findMany({ select: { id: true, zones: true } });
+  const floorsWithZones = await prisma.floor.findMany({
+    select: { id: true, zones: true },
+  });
   for (const floor of floorsWithZones) {
     const zones = (floor.zones as { name: string; kind: string }[]) ?? [];
-    for (const zone of zones.filter((z) => z.kind === 'room')) {
+    for (const zone of zones.filter(
+      (z) => z.kind === 'room' || z.kind === 'kitchen',
+    )) {
       await prisma.room.create({
         data: {
-          name: zone.name,
+          name:
+            zone.kind === 'kitchen' ? 'Cuisine · salle de pause' : zone.name,
           zoneName: zone.name,
           floorId: floor.id,
-          capacity: zone.name.includes('Horizon') ? 8 : 6,
+          capacity: zone.kind === 'kitchen' ? 8 : 4,
         },
       });
     }
@@ -511,7 +566,9 @@ async function main(): Promise<void> {
             status: 'ACTIVE',
             createdById: driver.id,
             slots: {
-              create: [{ vehicleId: vehicle.id, userId: driver.id, date, half }],
+              create: [
+                { vehicleId: vehicle.id, userId: driver.id, date, half },
+              ],
             },
           },
         });
