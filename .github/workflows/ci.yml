@@ -31,7 +31,6 @@ jobs:
       DATABASE_URL: postgresql://ilot:ilot@localhost:5432/ilot?schema=public
       JWT_SECRET: ci-only-secret-with-more-than-32-characters-long
       WEB_ORIGIN: http://localhost:4200
-      PORT: 3000
       NODE_ENV: test
       CI: true
 
