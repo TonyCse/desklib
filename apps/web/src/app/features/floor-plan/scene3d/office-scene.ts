@@ -796,56 +796,13 @@ export class OfficeScene {
     group.add(plant);
   }
 
-  /** Décor de l'open space : plantes, coin détente, bibliothèque, porte-manteau, poubelles. */
+  /** Open space : sol uniquement. Le décor (plantes, coin détente, rangements) est retiré pour le moment. */
   private buildOpenspace(group: THREE.Group, zone: FloorDetail['zones'][number]): void {
     const x0 = zone.x * S;
     const z0 = zone.y * S;
     const zw = zone.width * S;
     const zd = zone.height * S;
     group.add(this.plane(zw, zd, PALETTE.openspace, x0 + zw / 2, 0.007, z0 + zd / 2));
-
-    const corners: [number, number, number][] = [
-      [x0 + 0.4, z0 + 0.4, 1.5],
-      [x0 + 0.4, z0 + zd - 0.4, 1.6],
-      [x0 + zw - 0.4, z0 + zd - 0.4, 1.5],
-    ];
-    for (const [px, pz, h] of corners) {
-      const plant = this.fit(this.model('plant'), { height: h });
-      this.anchor(plant, px, pz);
-      group.add(plant);
-    }
-
-    // Coin détente le long du mur Sud : canapé dos au mur (face -Z), table basse devant, tapis dessous.
-    const loungeX = x0 + 6.0;
-    const sofaZ = z0 + zd - 0.9;
-    const rug = this.fit(this.model('rug'), { footprint: 3.4 });
-    this.anchor(rug, loungeX + 1.6, sofaZ - 0.9);
-    group.add(rug);
-    const sofa = this.fit(this.model('sofa'), { footprint: 2.2 });
-    this.anchor(sofa, loungeX + 1.6, sofaZ);
-    group.add(sofa);
-    const coffee = this.fit(this.model('table-coffee'), { footprint: 1.1 });
-    this.anchor(coffee, loungeX + 1.6, sofaZ - 1.5);
-    group.add(coffee);
-    const lamp = this.fit(this.model('lamp-floor'), { height: 1.9 });
-    this.anchor(lamp, loungeX + 3.2, sofaZ - 0.1);
-    group.add(lamp);
-
-    const shelf = this.fit(this.model('bookcase'), { height: 2.1 });
-    this.anchor(shelf, x0 + 0.5, z0 + zd * 0.42);
-    shelf.rotation.y = Math.PI / 2;
-    group.add(shelf);
-    const plantW = this.fit(this.model('plant-small'), { height: 1.1 });
-    this.anchor(plantW, x0 + 0.5, z0 + zd * 0.2);
-    group.add(plantW);
-
-    // Porte-manteau dans le coin Nord-Est, poubelle contre le mur Est à côté.
-    const coat = this.fit(this.model('coat-rack'), { height: 1.8 });
-    this.anchor(coat, x0 + zw - 0.4, z0 + 0.4);
-    group.add(coat);
-    const bin = this.fit(this.model('trashcan'), { height: 0.6 });
-    this.anchor(bin, x0 + zw - 0.5, z0 + 1.4);
-    group.add(bin);
   }
 
   /** Poste : bureau bleuté, écran posé sur le plateau, chaise côté utilisateur (face au poste). */
