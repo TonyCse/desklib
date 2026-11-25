@@ -713,9 +713,6 @@ export class OfficeScene {
     const table = this.fit(this.model('table-round'), { footprint: Math.min(zw, zd) * 0.42 });
     this.anchor(table, cx, cz);
     group.add(table);
-    const rug = this.fit(this.model('rug'), { footprint: Math.min(zw, zd) * 0.95 });
-    this.anchor(rug, cx, cz);
-    group.add(rug);
     const radius = Math.min(zw, zd) * 0.36;
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2;
@@ -1226,7 +1223,7 @@ export class OfficeScene {
   private paintZoneFloor(zoneName: string, state: ResourceState): void {
     const mesh = this.zoneFloors.get(zoneName);
     if (!mesh) return;
-    const color = new THREE.Color(RESOURCE_COLOR[state]).lerp(new THREE.Color(0xffffff), 0.55);
+    const color = new THREE.Color(RESOURCE_COLOR[state]).lerp(new THREE.Color(0xffffff), 0.2);
     (mesh.material as THREE.MeshStandardMaterial).color.copy(color);
   }
 
