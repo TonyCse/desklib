@@ -54,6 +54,29 @@ interface DraftLayout {
   desks: DraftDesk[];
 }
 
+type ResizeEdge = 'n' | 's' | 'e' | 'w';
+
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface DragState {
+  kind: 'zone' | 'desk';
+  key: string;
+  mode: 'move' | 'resize';
+  edge: ResizeEdge | null;
+  start: Rect | null;
+  offsetX: number;
+  offsetY: number;
+}
+
+/** Tolérance de détection d'un bord (unités du plan) et taille minimale d'une zone. */
+const EDGE_TOLERANCE = 10;
+const MIN_SIZE = 20;
+
 const GRID = 10;
 const ZONE_LABEL: Record<ZoneKind, string> = {
   openspace: 'Espace ouvert',
@@ -116,6 +139,7 @@ function fromDetail(detail: FloorDetail): DraftLayout {
           [attr.viewBox]="'-24 -24 ' + (draft().width + 48) + ' ' + (draft().height + 48)"
           role="group"
           aria-label="Plan en édition"
+          [style.cursor]="hoverCursor()"
           (pointermove)="onPointerMove($event)"
           (pointerup)="endDrag()"
           (pointercancel)="endDrag()"
@@ -124,7 +148,7 @@ function fromDetail(detail: FloorDetail): DraftLayout {
           <rect x="0" y="0" [attr.width]="draft().width" [attr.height]="draft().height" rx="10" class="fill-none stroke-accent" stroke-dasharray="8 6" stroke-width="2" />
 
           @for (zone of draft().zones; track zone.key) {
-            <g class="cursor-move" (pointerdown)="startDrag($event, 'zone', zone.key)">
+            <g (pointerdown)="startDrag($event, 'zone', zone.key)">
               <rect
                 [attr.x]="zone.x"
                 [attr.y]="zone.y"
@@ -305,8 +329,8 @@ export class FloorLayoutEditorComponent implements OnInit {
 
   private baseline: DraftLayout = { width: 0, height: 0, zones: [], desks: [] };
   private counter = 0;
-  private dragging: { kind: 'zone' | 'desk'; key: string; offsetX: number; offsetY: number } | null =
-    null;
+  private dragging: DragState | null = null;
+  protected readonly hoverCursor = signal('default');
 
   protected readonly selectedZone = computed(() => {
     const sel = this.selected();
@@ -438,16 +462,27 @@ export class FloorLayoutEditorComponent implements OnInit {
     const point = this.toPlan(event);
     const item = kind === 'zone' ? this.draft().zones.find((z) => z.key === key) : this.draft().desks.find((d) => d.key === key);
     if (!item) return;
-    this.dragging = { kind, key, offsetX: point.x - item.x, offsetY: point.y - item.y };
     this.selected.set({ kind, key });
+    // Près d'un bord de zone : étirement de ce bord ; ailleurs : déplacement.
+    const edge = kind === 'zone' ? this.edgeNear(point, item) : null;
+    this.dragging = edge
+      ? { kind, key, mode: 'resize', edge, start: { x: item.x, y: item.y, width: item.width, height: item.height }, offsetX: 0, offsetY: 0 }
+      : { kind, key, mode: 'move', edge: null, start: null, offsetX: point.x - item.x, offsetY: point.y - item.y };
     this.svg().nativeElement.setPointerCapture(event.pointerId);
   }
 
   protected onPointerMove(event: PointerEvent): void {
-    const drag = this.dragging;
-    if (!drag) return;
     const point = this.toPlan(event);
+    const drag = this.dragging;
+    if (!drag) {
+      this.hoverCursor.set(this.cursorAt(point));
+      return;
+    }
     const d = this.draft();
+    if (drag.kind === 'zone' && drag.mode === 'resize' && drag.start && drag.edge) {
+      this.patchZone(drag.key, this.resizeRect(drag.start, drag.edge, point, d));
+      return;
+    }
     if (drag.kind === 'zone') {
       const zone = d.zones.find((z) => z.key === drag.key);
       if (!zone) return;
@@ -465,6 +500,60 @@ export class FloorLayoutEditorComponent implements OnInit {
 
   protected endDrag(): void {
     this.dragging = null;
+  }
+
+  /** Bord d'un rectangle sous le point (à quelques unités près), ou null. */
+  private edgeNear(point: { x: number; y: number }, r: Rect): ResizeEdge | null {
+    const T = EDGE_TOLERANCE;
+    const x1 = r.x + r.width;
+    const y1 = r.y + r.height;
+    const inX = point.x >= r.x - T && point.x <= x1 + T;
+    const inY = point.y >= r.y - T && point.y <= y1 + T;
+    const candidates: [ResizeEdge, number, boolean][] = [
+      ['w', Math.abs(point.x - r.x), inY],
+      ['e', Math.abs(point.x - x1), inY],
+      ['n', Math.abs(point.y - r.y), inX],
+      ['s', Math.abs(point.y - y1), inX],
+    ];
+    let best: ResizeEdge | null = null;
+    let bestDist = Infinity;
+    for (const [edge, dist, inside] of candidates) {
+      if (inside && dist <= T && dist < bestDist) {
+        best = edge;
+        bestDist = dist;
+      }
+    }
+    return best;
+  }
+
+  /** Curseur indiquant le bord d'une zone survolée, sinon « move » au-dessus d'une zone. */
+  private cursorAt(point: { x: number; y: number }): string {
+    for (const zone of [...this.draft().zones].reverse()) {
+      const edge = this.edgeNear(point, zone);
+      if (edge) return edge === 'e' || edge === 'w' ? 'ew-resize' : 'ns-resize';
+    }
+    for (const zone of this.draft().zones) {
+      if (point.x >= zone.x && point.x <= zone.x + zone.width && point.y >= zone.y && point.y <= zone.y + zone.height) {
+        return 'move';
+      }
+    }
+    return 'default';
+  }
+
+  /** Nouveau rectangle quand on étire un bord : calé sur la grille, borné par le plan et une taille minimale. */
+  private resizeRect(start: Rect, edge: ResizeEdge, point: { x: number; y: number }, d: DraftLayout): Partial<Rect> {
+    const px = snap(point.x);
+    const py = snap(point.y);
+    const x1 = start.x + start.width;
+    const y1 = start.y + start.height;
+    if (edge === 'e') return { width: this.clamp(px - start.x, MIN_SIZE, d.width - start.x) };
+    if (edge === 's') return { height: this.clamp(py - start.y, MIN_SIZE, d.height - start.y) };
+    if (edge === 'w') {
+      const x = this.clamp(px, 0, x1 - MIN_SIZE);
+      return { x, width: x1 - x };
+    }
+    const y = this.clamp(py, 0, y1 - MIN_SIZE);
+    return { y, height: y1 - y };
   }
 
   // ----- Enregistrement -------------------------------------------------------
