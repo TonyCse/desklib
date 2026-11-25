@@ -292,6 +292,10 @@ export class OfficeScene {
   private buildingW = 0;
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   private resizeState: ResizeState | null = null;
+  /** Corps teinté de chaque poste (le bureau change de couleur selon son état). */
+  private readonly bodies = new Map<string, THREE.Object3D>();
+  /** Moquette ou carrelage de chaque salle et cuisine (teinte selon l'état de la salle). */
+  private readonly zoneFloors = new Map<string, THREE.Mesh>();
   private buildingH = 0;
   private detail: FloorDetail | null = null;
   private tweens: Tween[] = [];
@@ -387,17 +391,14 @@ export class OfficeScene {
     rooms: readonly SceneRoom[],
   ): void {
     for (const desk of desks) {
-      this.paint(
-        pickKey({ kind: 'desk', id: desk.id }),
-        DESK_COLOR[desk.state],
-        desk.state === 'UNAVAILABLE' ? 0.45 : 0.9,
-      );
+      const body = this.bodies.get(pickKey({ kind: 'desk', id: desk.id }));
+      if (body) this.tintAll(body, DESK_COLOR[desk.state]);
     }
     for (const v of vehicles) {
       this.paint(pickKey({ kind: 'vehicle', id: v.id }), RESOURCE_COLOR[v.state], 0.9);
     }
     for (const r of rooms) {
-      this.paint(pickKey({ kind: 'room', id: r.id }), RESOURCE_COLOR[r.state], 0.32);
+      this.paintZoneFloor(r.zoneName, r.state);
     }
     this.requestRender();
   }
@@ -625,6 +626,8 @@ export class OfficeScene {
     rooms: readonly SceneRoom[],
   ): THREE.Group {
     const group = new THREE.Group();
+    this.bodies.clear();
+    this.zoneFloors.clear();
     this.buildingW = detail.width * S;
     this.buildingH = detail.height * S;
     // Repères du plan : on repart de zéro pour les postes et les salles de cet étage.
@@ -668,21 +671,7 @@ export class OfficeScene {
     const zd = zone.height * S;
     const cx = x0 + zw / 2;
     const cz = z0 + zd / 2;
-    const key = pickKey({ kind: 'room', id: room.id });
-
-    const marker = new THREE.Mesh(
-      new THREE.PlaneGeometry(zw * 0.96, zd * 0.96),
-      new THREE.MeshBasicMaterial({
-        color: RESOURCE_COLOR[room.state],
-        transparent: true,
-        opacity: 0.32,
-        depthWrite: false,
-      }),
-    );
-    marker.rotation.x = -Math.PI / 2;
-    marker.position.set(cx, 0.02, cz);
-    group.add(marker);
-    this.markers.set(key, marker);
+    this.paintZoneFloor(zone.name, room.state);
 
     const hit = new THREE.Mesh(
       new THREE.BoxGeometry(zw, 1.8, zd),
@@ -716,7 +705,7 @@ export class OfficeScene {
     const zd = zone.height * S;
     const cx = x0 + zw / 2;
     const cz = z0 + zd / 2;
-    group.add(this.plane(zw, zd, PALETTE.roomCarpet, cx, 0.008, cz));
+    group.add(this.zoneFloor(zone.name, zw, zd, PALETTE.roomCarpet, cx, cz));
     this.addRoomWalls(group, x0, z0, zw, zd, WALL_HIGH - 0.4);
 
     group.add(this.box(zw * 0.5, 0.9, 0.05, this.material(0x1e293b, 0.4), cx, 1.5, z0 + 0.12));
@@ -746,7 +735,7 @@ export class OfficeScene {
     const z0 = zone.y * S;
     const zw = zone.width * S;
     const zd = zone.height * S;
-    group.add(this.plane(zw, zd, PALETTE.kitchenTile, x0 + zw / 2, 0.008, z0 + zd / 2));
+    group.add(this.zoneFloor(zone.name, zw, zd, PALETTE.kitchenTile, x0 + zw / 2, z0 + zd / 2));
     this.addRoomWalls(group, x0, z0, zw, zd, WALL_HIGH - 0.4);
 
     const counterW = zw - 1.2;
@@ -860,19 +849,8 @@ export class OfficeScene {
     chair.rotation.y = 0;
     group.add(chair);
 
-    const key = pickKey({ kind: 'desk', id: desk.id });
-    const marker = new THREE.Mesh(
-      new THREE.PlaneGeometry(w * 1.12, d * 1.12),
-      new THREE.MeshBasicMaterial({
-        color: DESK_COLOR[desk.state],
-        transparent: true,
-        opacity: 0.9,
-      }),
-    );
-    marker.rotation.x = -Math.PI / 2;
-    marker.position.set(cx, 0.02, cz);
-    group.add(marker);
-    this.markers.set(key, marker);
+    this.tintAll(table, DESK_COLOR[desk.state]);
+    this.bodies.set(pickKey({ kind: 'desk', id: desk.id }), table);
 
     const hit = new THREE.Mesh(
       new THREE.BoxGeometry(w * 1.1, 1.6, d * 1.1),
@@ -1215,6 +1193,41 @@ export class OfficeScene {
       obj.material = material;
     });
     return copy;
+  }
+
+  /** Teinte tout un objet (chaque copie de modèle a ses propres matériaux). */
+  private tintAll(object: THREE.Object3D, color: number): void {
+    object.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) (obj.material as THREE.MeshStandardMaterial).color.setHex(color);
+    });
+  }
+
+  /** Sol d'une salle ou cuisine, avec son propre matériau pour pouvoir changer sa couleur. */
+  private zoneFloor(
+    zoneName: string,
+    w: number,
+    d: number,
+    color: number,
+    x: number,
+    z: number,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(w, d),
+      new THREE.MeshStandardMaterial({ color, roughness: 1 }),
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, 0.008, z);
+    mesh.receiveShadow = true;
+    this.zoneFloors.set(zoneName, mesh);
+    return mesh;
+  }
+
+  /** Moquette teintée selon l'état : la couleur d'état, éclaircie pour rester posée au sol. */
+  private paintZoneFloor(zoneName: string, state: ResourceState): void {
+    const mesh = this.zoneFloors.get(zoneName);
+    if (!mesh) return;
+    const color = new THREE.Color(RESOURCE_COLOR[state]).lerp(new THREE.Color(0xffffff), 0.55);
+    (mesh.material as THREE.MeshStandardMaterial).color.copy(color);
   }
 
   /** Teinte la carrosserie d'un véhicule sans toucher aux vitres ni aux pneus. */
