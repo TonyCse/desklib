@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -23,6 +24,7 @@ import {
   UpdateVehicleDto,
   RangeQueryDto,
   UpdateDeskDto,
+  UpdateLayoutDto,
   UpdateSettingsDto,
   UpdateUserDto,
 } from './dto/admin.dto.js';
@@ -116,6 +118,15 @@ export class AdminController {
   @Post('users')
   createUser(@CurrentUser() actor: AuthUser, @Body() dto: CreateUserDto) {
     return this.admin.createUser(actor, dto);
+  }
+
+  @Put('floors/:id/layout')
+  updateFloorLayout(
+    @CurrentUser() actor: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateLayoutDto,
+  ) {
+    return this.admin.updateFloorLayout(actor, id, dto);
   }
 
   @Patch('users/:id')

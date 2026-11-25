@@ -14,6 +14,7 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import { ROLES } from '@desklib/shared';
 import type { Role } from '@desklib/shared';
@@ -154,6 +155,61 @@ export class CreateUserDto {
   @MinLength(8, { message: 'mot de passe : 8 caractères minimum' })
   @MaxLength(128)
   password!: string;
+}
+
+export class ZoneDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  name!: string;
+
+  @IsIn(['openspace', 'room', 'kitchen'], { message: 'type de zone invalide' })
+  kind!: 'openspace' | 'room' | 'kitchen';
+
+  @IsInt()
+  @Min(0)
+  @Max(5000)
+  x!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(5000)
+  y!: number;
+
+  @IsInt()
+  @Min(20)
+  @Max(5000)
+  width!: number;
+
+  @IsInt()
+  @Min(20)
+  @Max(5000)
+  height!: number;
+
+  /** Capacité, utilisée pour les salles de réunion et la cuisine. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(40)
+  capacity?: number;
+}
+
+export class UpdateLayoutDto {
+  @IsInt()
+  @Min(100)
+  @Max(5000)
+  width!: number;
+
+  @IsInt()
+  @Min(100)
+  @Max(5000)
+  height!: number;
+
+  @IsArray()
+  @ArrayMaxSize(80)
+  @ValidateNested({ each: true })
+  @Type(() => ZoneDto)
+  zones!: ZoneDto[];
 }
 
 export class UpdateUserDto {

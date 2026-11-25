@@ -25,6 +25,7 @@ import {
   UpdateVehicleDto,
   RangeQueryDto,
   UpdateDeskDto,
+  UpdateLayoutDto,
   UpdateSettingsDto,
   UpdateUserDto,
 } from './dto/admin.dto.js';
@@ -246,6 +247,87 @@ export class AdminService {
         tx,
       );
       return after;
+    });
+  }
+
+  /**
+   * Enregistre le plan d'un étage (dimensions et zones). Chaque zone de type salle ou cuisine
+   * correspond à une salle réservable : elle est créée, mise à jour ou supprimée avec la zone.
+   * Une salle ayant des réservations ne peut pas être supprimée.
+   */
+  async updateFloorLayout(actor: AuthUser, floorId: string, dto: UpdateLayoutDto) {
+    const floor = await this.prisma.floor.findUnique({
+      where: { id: floorId },
+      select: {
+        id: true,
+        rooms: {
+          select: { id: true, zoneName: true, _count: { select: { bookings: true } } },
+        },
+      },
+    });
+    if (!floor) throw new NotFoundException('Étage introuvable');
+
+    const names = dto.zones.map((z) => z.name);
+    if (new Set(names).size !== names.length) {
+      throw new BadRequestException('Deux zones portent le même nom');
+    }
+    for (const zone of dto.zones) {
+      if (zone.x + zone.width > dto.width || zone.y + zone.height > dto.height) {
+        throw new BadRequestException(`La zone « ${zone.name} » sort du plan`);
+      }
+    }
+
+    const roomZones = dto.zones.filter((z) => z.kind === 'room' || z.kind === 'kitchen');
+    const removed = floor.rooms.filter(
+      (room) => !roomZones.some((zone) => zone.name === room.zoneName),
+    );
+    const blocked = removed.find((room) => room._count.bookings > 0);
+    if (blocked) {
+      throw new ConflictException(
+        `La salle « ${blocked.zoneName} » a des réservations : impossible de la supprimer`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.floor.update({
+        where: { id: floorId },
+        data: {
+          width: dto.width,
+          height: dto.height,
+          zones: dto.zones as unknown as Prisma.InputJsonValue,
+        },
+      });
+      if (removed.length > 0) {
+        await tx.room.deleteMany({ where: { id: { in: removed.map((r) => r.id) } } });
+      }
+      for (const zone of roomZones) {
+        const existing = floor.rooms.find((room) => room.zoneName === zone.name);
+        if (existing) {
+          if (zone.capacity !== undefined) {
+            await tx.room.update({ where: { id: existing.id }, data: { capacity: zone.capacity } });
+          }
+        } else {
+          await tx.room.create({
+            data: {
+              floorId,
+              zoneName: zone.name,
+              name: zone.name,
+              capacity: zone.capacity ?? (zone.kind === 'kitchen' ? 8 : 4),
+            },
+          });
+        }
+      }
+      await this.audit.record(
+        {
+          actorId: actor.id,
+          action: 'FLOOR_LAYOUT_UPDATED',
+          entityType: 'Floor',
+          entityId: floorId,
+          payload: { width: dto.width, height: dto.height, zones: dto.zones.length },
+        },
+        tx,
+      );
+      return { id: floorId, width: dto.width, height: dto.height, zones: dto.zones };
     });
   }
 
