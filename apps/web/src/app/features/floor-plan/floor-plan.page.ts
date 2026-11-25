@@ -43,6 +43,7 @@ import type {
 } from './scene3d/office-scene';
 import { ResourcePanelComponent } from './resource-panel.component';
 import { FloorScene3dComponent } from './scene3d/floor-scene-3d.component';
+import { FloorLayoutEditorComponent } from './floor-layout-editor.component';
 
 type ViewMode = 'plan' | '3d' | 'list';
 
@@ -120,6 +121,7 @@ const DESK_TONE: Record<DeskState, BadgeTone> = {
     ButtonComponent,
     BadgeComponent,
     FloorScene3dComponent,
+    FloorLayoutEditorComponent,
     DeskPopoverComponent,
     ResourcePanelComponent,
     RouterLink,
@@ -183,6 +185,10 @@ export class FloorPlanPage {
   protected readonly vehiclesAvail = signal<VehiclesResponse | null>(null);
   protected readonly roomsAvail = signal<RoomsResponse | null>(null);
   protected readonly bookingBusy = signal(false);
+
+  // Mode édition du plan, réservé à l'administrateur (vue plan uniquement).
+  protected readonly isAdmin = computed(() => this.auth.role() === 'ADMIN');
+  protected readonly editing = signal(false);
 
   protected readonly desks = computed<DeskView[]>(() => {
     const detail = this.detail();
@@ -401,6 +407,7 @@ export class FloorPlanPage {
 
   protected selectFloor(id: string): void {
     this.clearSelection();
+    this.editing.set(false);
     this.selectedFloorId.set(id);
   }
 
@@ -410,7 +417,24 @@ export class FloorPlanPage {
   }
 
   protected setView(mode: ViewMode): void {
+    // Quitter la vue plan abandonne les modifications non enregistrées.
+    if (mode !== 'plan') this.editing.set(false);
     this.viewMode.set(mode);
+  }
+
+  protected startEdit(): void {
+    this.clearSelection();
+    this.editing.set(true);
+  }
+
+  protected cancelEdit(): void {
+    this.editing.set(false);
+  }
+
+  /** Plan enregistré : on quitte le mode édition et on recharge l'étage (3D comprise). */
+  protected onLayoutSaved(): void {
+    this.editing.set(false);
+    this.refreshVersion.update((v) => v + 1);
   }
 
   protected toggleOnlyFree(checked: boolean): void {
