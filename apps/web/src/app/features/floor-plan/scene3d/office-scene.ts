@@ -39,7 +39,7 @@ const RESOURCE_COLOR: Record<ResourceState, number> = {
 };
 
 const PALETTE = {
-  ground: 0xdfe9f4,
+  ground: 0xa9d18e,
   openspace: 0xf7f9fc,
   roomCarpet: 0xe4ecf7,
   kitchenTile: 0xf1f5f9,
@@ -57,7 +57,7 @@ const PALETTE = {
 const WALL_HIGH = 2.6;
 const WALL_LOW = 0.45;
 const WALL_T = 0.14;
-const SITE_MARGIN = 2;
+const SITE_MARGIN = 4;
 const SLOT_W = 2.2;
 
 export interface SceneDesk {
@@ -322,8 +322,9 @@ export class OfficeScene {
     rooms: readonly SceneRoom[],
   ): void {
     const signature = [
+      `${detail.width}x${detail.height}|${JSON.stringify(detail.zones)}`,
       desks
-        .map((d) => d.id)
+        .map((d) => `${d.id}:${d.x},${d.y},${d.width},${d.height},${d.isActive}`)
         .sort()
         .join(','),
       vehicles
@@ -858,8 +859,10 @@ export class OfficeScene {
     this.anchor(table, cx, cz);
     group.add(table);
 
+    const deskTop = new THREE.Box3().setFromObject(table).max.y;
     const monitor = this.fit(this.model('monitor'), { height: 0.55 });
     this.anchor(monitor, cx, cz - d * 0.25);
+    monitor.position.y += deskTop;
     group.add(monitor);
 
     const chair = this.fit(this.model('chair-desk'), { height: 0.95 });
@@ -974,29 +977,6 @@ export class OfficeScene {
     site.add(this.plane(w, 2.6, PALETTE.curb, w / 2, 0.004, parkZ1 + 1.4));
     site.add(this.plane(w, 0.1, PALETTE.paint, w / 2, 0.006, parkZ1 + 0.1));
 
-    const trees: [ModelName, number, number, number][] = [
-      ['tree-oak', left + 1.5, 2, 3.6],
-      ['tree-default', left + 1.2, d * 0.5, 3.2],
-      ['tree-pine', left + 1.6, d - 1.5, 4.2],
-      ['tree-simple', w * 0.3, -1.2, 3.0],
-      ['tree-fat', w * 0.75, -1.4, 3.4],
-      ['tree-oak', right - 1.6, d * 0.6, 3.6],
-      ['tree-default', right - 1.4, parkZ1 + 2.2, 3.2],
-      ['tree-pine', w * 0.18, parkZ1 + 3.1, 3.8],
-    ];
-    for (const [name, x, z, h] of trees) {
-      const tree = this.fit(this.model(name), { height: h });
-      this.anchor(tree, x, z);
-      site.add(tree);
-    }
-    for (const [x, z] of [
-      [w * 0.5, parkZ1 + 0.8],
-      [w * 0.95, parkZ1 + 3.2],
-    ] as const) {
-      const bush = this.fit(this.model('bush-large'), { footprint: 1.6 });
-      this.anchor(bush, x, z);
-      site.add(bush);
-    }
     return site;
   }
 
