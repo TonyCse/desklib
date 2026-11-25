@@ -23,6 +23,8 @@
           [floors]="floors()"
           [floorId]="floorId() ?? ''"
           (floorChange)="selectFloor($event)"
+          [editable]="isAdmin()"
+          (zoneResized)="onZoneResized($event)"
         />
       }
     } @else if (viewMode() === 'plan') {

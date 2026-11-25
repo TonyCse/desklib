@@ -40,6 +40,7 @@ import type {
   ScenePick,
   SceneRoom,
   SceneVehicle,
+  ZoneRect,
 } from './scene3d/office-scene';
 import { ResourcePanelComponent } from './resource-panel.component';
 import { FloorScene3dComponent } from './scene3d/floor-scene-3d.component';
@@ -432,6 +433,27 @@ export class FloorPlanPage {
   }
 
   /** Plan enregistré : on quitte le mode édition et on recharge l'étage (3D comprise). */
+  /** Pièce redimensionnée dans la scène 3D : enregistrement du plan, puis rechargement. */
+  protected onZoneResized(change: ZoneRect): void {
+    const plan = this.detail();
+    if (!plan) return;
+    const zones = plan.zones.map((z) =>
+      z.name === change.name
+        ? { ...z, x: change.x, y: change.y, width: change.width, height: change.height }
+        : z,
+    );
+    this.http
+      .put(`/api/admin/floors/${plan.id}/layout`, { width: plan.width, height: plan.height, zones })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success(`${change.name} : dimensions enregistrées.`);
+          this.refreshVersion.update((v) => v + 1);
+        },
+        error: () => undefined,
+      });
+  }
+
   protected onLayoutSaved(): void {
     this.editing.set(false);
     this.refreshVersion.update((v) => v + 1);

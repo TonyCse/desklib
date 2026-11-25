@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import type { FloorDetail, FloorSummary } from '../../../core/models';
 import { EmptyStateComponent } from '../../../shared/ui/feedback.components';
-import type { OfficeScene, SceneDesk, SceneRoom, SceneVehicle, ScenePick } from './office-scene';
+import type { OfficeScene, SceneDesk, SceneRoom, SceneVehicle, ScenePick, ZoneRect } from './office-scene';
 
 /**
  * Vue 3D de l'étage. Three.js est chargé à la demande (import dynamique). Glisser fait tourner la scène,
@@ -124,6 +124,9 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
   readonly picked = output<ScenePick>();
   /** Étage choisi dans les contrôles de la scène. */
   readonly floorChange = output<string>();
+  /** Administrateur : nouvelles dimensions d'une pièce après glissement de son bord. */
+  readonly editable = input(false);
+  readonly zoneResized = output<ZoneRect>();
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
@@ -135,6 +138,8 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private downAt: { x: number; y: number } | null = null;
   private destroyed = false;
+  private resizing = false;
+  private hostEl: HTMLElement | null = null;
 
   constructor() {
     // Une seule synchronisation : la scène décide seule entre transition d'étage, reconstruction et mise à jour.
@@ -157,6 +162,7 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.hostEl?.removeEventListener('pointerdown', this.captureDown, true);
     this.resizeObserver?.disconnect();
     this.scene?.dispose();
   }
@@ -180,7 +186,22 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
     this.downAt = { x: event.clientX, y: event.clientY };
   }
 
+  /** Début d'un glissement sur le bord d'une pièce (administrateur). */
+  private readonly captureDown = (event: PointerEvent): void => {
+    if (!this.editable() || !this.scene) return;
+    if (!this.scene.beginResize(event.clientX, event.clientY)) return;
+    event.stopPropagation();
+    this.resizing = true;
+    this.canvas().nativeElement.setPointerCapture(event.pointerId);
+  };
+
   protected onPointerUp(event: PointerEvent): void {
+    if (this.resizing) {
+      this.resizing = false;
+      const change = this.scene?.endResize() ?? null;
+      if (change) this.zoneResized.emit(change);
+      return;
+    }
     // Un clic est un appui et un relâché au même endroit ; un glisser fait tourner la scène.
     const start = this.downAt;
     this.downAt = null;
@@ -192,6 +213,17 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
 
   protected onPointerMove(event: PointerEvent): void {
     if (!this.scene) return;
+    if (this.resizing) {
+      this.scene.moveResize(event.clientX, event.clientY);
+      return;
+    }
+    if (this.editable()) {
+      const edge = this.scene.edgeCursor(event.clientX, event.clientY);
+      if (edge) {
+        this.canvas().nativeElement.style.cursor = edge;
+        return;
+      }
+    }
     if (this.scene.hover(event.clientX, event.clientY)) {
       this.canvas().nativeElement.style.cursor = this.scene.pick(event.clientX, event.clientY)
         ? 'pointer'
@@ -210,6 +242,9 @@ export class FloorScene3dComponent implements AfterViewInit, OnDestroy {
       }
       this.scene = scene;
       const host = this.host().nativeElement;
+      this.hostEl = host;
+      // Capture : le bord d'une pièce est traité avant la caméra (qui ne tourne donc pas).
+      host.addEventListener('pointerdown', this.captureDown, true);
       scene.resize(host.clientWidth, host.clientHeight);
       scene.update(this.detail(), this.desks(), this.vehicles(), this.rooms());
       this.resizeObserver = new ResizeObserver(() => {

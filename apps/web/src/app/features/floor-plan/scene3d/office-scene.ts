@@ -57,6 +57,37 @@ const PALETTE = {
 const WALL_HIGH = 2.6;
 const WALL_LOW = 0.45;
 const WALL_T = 0.14;
+/** Pièces redimensionnables : tolérance de détection du bord (unités du plan) et taille minimale. */
+const EDGE_TOLERANCE = 12;
+const RESIZE_GRID = 10;
+const MIN_ZONE = 20;
+
+/** Rectangle d'une zone, en unités du plan. */
+export interface ZoneRect {
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+type ResizeEdge = 'n' | 's' | 'e' | 'w';
+
+interface ResizeState {
+  edge: ResizeEdge;
+  start: ZoneRect;
+  current: ZoneRect;
+  line: THREE.LineLoop;
+}
+
+function snapPlan(value: number): number {
+  return Math.round(value / RESIZE_GRID) * RESIZE_GRID;
+}
+
+function clampPlan(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 const SITE_MARGIN = 4;
 const SLOT_W = 2.2;
 
@@ -259,6 +290,8 @@ export class OfficeScene {
   private builtSignature = '';
   private siteKey = '';
   private buildingW = 0;
+  private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  private resizeState: ResizeState | null = null;
   private buildingH = 0;
   private detail: FloorDetail | null = null;
   private tweens: Tween[] = [];
@@ -935,6 +968,132 @@ export class OfficeScene {
     site.add(this.plane(w, 0.1, PALETTE.paint, w / 2, 0.006, parkZ1 + 0.1));
 
     return site;
+  }
+
+  // ----- Redimensionnement d'une pièce (administrateur) ----------------------
+
+  /** Point visé sur le sol, en unités du plan. */
+  private planPointAt(clientX: number, clientY: number): { x: number; y: number } | null {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = new THREE.Vector3();
+    if (!this.raycaster.ray.intersectPlane(this.groundPlane, hit)) return null;
+    return { x: hit.x / S, y: hit.z / S };
+  }
+
+  /** Bord d'une salle ou d'une cuisine sous le curseur (à quelques unités près). */
+  private edgeAt(clientX: number, clientY: number): { zone: ZoneRect; edge: ResizeEdge } | null {
+    const p = this.planPointAt(clientX, clientY);
+    const plan = this.detail;
+    if (!p || !plan) return null;
+    const T = EDGE_TOLERANCE;
+    let best: { zone: ZoneRect; edge: ResizeEdge; dist: number } | null = null;
+    for (const z of plan.zones) {
+      if (z.kind !== 'room' && z.kind !== 'kitchen') continue;
+      const x1 = z.x + z.width;
+      const y1 = z.y + z.height;
+      const inX = p.x >= z.x - T && p.x <= x1 + T;
+      const inY = p.y >= z.y - T && p.y <= y1 + T;
+      const candidates: [ResizeEdge, number, boolean][] = [
+        ['w', Math.abs(p.x - z.x), inY],
+        ['e', Math.abs(p.x - x1), inY],
+        ['n', Math.abs(p.y - z.y), inX],
+        ['s', Math.abs(p.y - y1), inX],
+      ];
+      for (const [edge, dist, inside] of candidates) {
+        if (inside && dist <= T && (!best || dist < best.dist)) {
+          best = {
+            zone: { name: z.name, x: z.x, y: z.y, width: z.width, height: z.height },
+            edge,
+            dist,
+          };
+        }
+      }
+    }
+    return best ? { zone: best.zone, edge: best.edge } : null;
+  }
+
+  /** Curseur à afficher au survol d'un bord redimensionnable, sinon null. */
+  edgeCursor(clientX: number, clientY: number): string | null {
+    const hit = this.edgeAt(clientX, clientY);
+    if (!hit) return null;
+    return hit.edge === 'e' || hit.edge === 'w' ? 'ew-resize' : 'ns-resize';
+  }
+
+  /** Démarre le redimensionnement si le curseur est sur le bord d'une pièce. */
+  beginResize(clientX: number, clientY: number): boolean {
+    const hit = this.edgeAt(clientX, clientY);
+    if (!hit) return false;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Array(12).fill(0), 3));
+    const line = new THREE.LineLoop(
+      geometry,
+      new THREE.LineBasicMaterial({ color: 0x2f54c6 }),
+    );
+    line.position.y = 0.6;
+    this.scene.add(line);
+    this.resizeState = { edge: hit.edge, start: hit.zone, current: { ...hit.zone }, line };
+    this.updateResizeLine();
+    return true;
+  }
+
+  /** Suit le curseur : le bord se cale sur la grille et ne sort pas du plan. */
+  moveResize(clientX: number, clientY: number): void {
+    const r = this.resizeState;
+    const plan = this.detail;
+    if (!r || !plan) return;
+    const p = this.planPointAt(clientX, clientY);
+    if (!p) return;
+    const px = snapPlan(p.x);
+    const py = snapPlan(p.y);
+    const s = r.start;
+    const next: ZoneRect = { ...s };
+    if (r.edge === 'e') next.width = clampPlan(px - s.x, MIN_ZONE, plan.width - s.x);
+    if (r.edge === 's') next.height = clampPlan(py - s.y, MIN_ZONE, plan.height - s.y);
+    if (r.edge === 'w') {
+      next.x = clampPlan(px, 0, s.x + s.width - MIN_ZONE);
+      next.width = s.x + s.width - next.x;
+    }
+    if (r.edge === 'n') {
+      next.y = clampPlan(py, 0, s.y + s.height - MIN_ZONE);
+      next.height = s.y + s.height - next.y;
+    }
+    r.current = next;
+    this.updateResizeLine();
+  }
+
+  /** Termine le redimensionnement ; renvoie le nouveau rectangle s'il a changé. */
+  endResize(): ZoneRect | null {
+    const r = this.resizeState;
+    if (!r) return null;
+    this.scene.remove(r.line);
+    r.line.geometry.dispose();
+    (r.line.material as THREE.Material).dispose();
+    this.resizeState = null;
+    const c = r.current;
+    const s = r.start;
+    const changed = c.x !== s.x || c.y !== s.y || c.width !== s.width || c.height !== s.height;
+    return changed ? c : null;
+  }
+
+  /** Aperçu du nouveau contour pendant le glissement. */
+  private updateResizeLine(): void {
+    const r = this.resizeState;
+    if (!r) return;
+    const c = r.current;
+    const x0 = c.x * S;
+    const x1 = (c.x + c.width) * S;
+    const z0 = c.y * S;
+    const z1 = (c.y + c.height) * S;
+    const corners = [x0, z0, x1, z0, x1, z1, x0, z1];
+    const pos = r.line.geometry.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < 4; i++) pos.setXYZ(i, corners[i * 2] ?? 0, 0, corners[i * 2 + 1] ?? 0);
+    pos.needsUpdate = true;
+    this.requestRender();
   }
 
   // ----- Utilitaires --------------------------------------------------------
