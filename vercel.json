@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm ci",
+  "installCommand": "npm ci --include=dev",
   "buildCommand": "npm run build -w @desklib/shared && npm run build -w @desklib/web",
   "outputDirectory": "apps/web/dist/web/browser",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
