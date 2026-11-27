@@ -1,32 +1,5 @@
-import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import cookieParser from 'cookie-parser';
-import helmet from 'helmet';
-import { AppModule } from './app.module.js';
-import { loadRootEnv } from './env.js';
+import { createApp } from './create-app.js';
 
-async function bootstrap(): Promise<void> {
-  // Le .env est unique, à la racine du monorepo. Chargé avant toute instanciation des services.
-  loadRootEnv();
-
-  const app = await NestFactory.create(AppModule);
-
-  app.use(helmet());
-  app.use(cookieParser());
-  app.enableCors({
-    origin: process.env['WEB_ORIGIN'],
-    credentials: true,
-  });
-  app.setGlobalPrefix('api');
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  await app.listen(Number(process.env['PORT'] ?? 3000));
-}
-
-await bootstrap();
+// Serveur local (npm run dev) : la même application que la fonction Vercel, avec une écoute.
+const app = await createApp();
+await app.listen(Number(process.env['PORT'] ?? 3000));
