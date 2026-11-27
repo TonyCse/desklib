@@ -21,4 +21,4 @@ test-results/
 playwright-report/
 
 # Généré par le build Vercel (apps/api/scripts/bundle-vercel.mjs)
-/api/[...all].mjs
+/api/
