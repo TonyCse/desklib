@@ -1,6 +1,6 @@
 {
   "installCommand": "npm ci --include=dev",
-  "buildCommand": "npm run generate -w @desklib/api && npm run build -w @desklib/shared && npm run build -w @desklib/api && npm run build -w @desklib/web",
+  "buildCommand": "npm run generate -w @desklib/api && npm run build -w @desklib/shared && npm run build -w @desklib/api && npm run bundle -w @desklib/api && npm run build -w @desklib/web",
   "outputDirectory": "apps/web/dist/web/browser",
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }
