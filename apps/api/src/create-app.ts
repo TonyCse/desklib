@@ -7,7 +7,7 @@ import { loadRootEnv } from './env.js';
 
 /**
  * Crée l'application NestJS sans démarrer d'écoute. Utilisée par le serveur local (main.ts)
- * et par la fonction serverless Vercel (api/[...all].mjs).
+ * et par la fonction serverless Vercel (api/[...all].mjs, qui importe le bundle de vercel-handler).
  */
 export async function createApp(): Promise<INestApplication> {
   // Le .env est unique, à la racine du monorepo. Chargé avant toute instanciation des services.
